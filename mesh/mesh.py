@@ -29,7 +29,7 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
 
   num_faces = len(mesh.loop_triangles)
   num_corners = num_faces * 3
-  print("Faces: ", num_corners, color_layer)
+  # print("Faces: ", num_corners, color_layer)
 
   positions = np.zeros((num_corners, 3), dtype=np.float32)
   normals   = np.zeros((num_corners, 3), dtype=np.float32)
