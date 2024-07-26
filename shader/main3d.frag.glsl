@@ -82,5 +82,7 @@ void main()
   cc1[2].a = cc_fetchAlpha(cc1Alpha.z, cycle0);
   cc1[3].a = cc_fetchAlpha(cc1Alpha.w, cycle0);
 
-  FragColor = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
+  vec4 ccFinal = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
+  // if(ccFinal.a < alphaThreshold) discard; // @TODO: alpha threshold
+  FragColor = ccFinal;
 }

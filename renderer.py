@@ -126,10 +126,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
         # Draw object
         batch = batch_for_shader(self.shader, 'TRIS', {
-          "inPos": meshBuffers.vert,
+          "inPos"   : meshBuffers.vert,
           "inNormal": meshBuffers.norm,
-          "inColor": meshBuffers.color,
-          "inUV": meshBuffers.uv
+          "inColor" : meshBuffers.color,
+          "inUV"    : meshBuffers.uv
         })
 
         modelview_matrix = obj.matrix_world
