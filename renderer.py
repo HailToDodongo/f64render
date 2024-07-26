@@ -92,7 +92,15 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         f3d_mat = None
         if obj.material_slots:
           f3d_mat = obj.material_slots[0].material.f3d_mat                    
-              
+
+        # gpu.state.blend_set('ALPHA') # Alpha blend
+
+        # Face Culling
+        cull = "NONE"
+        if f3d_mat.rdp_settings.g_cull_back: cull = "BACK"
+        if f3d_mat.rdp_settings.g_cull_front: cull = "FRONT"
+        gpu.state.face_culling_set(cull)
+
         if f3d_mat.tex0.tex:
           gpuTex0 = gpu.texture.from_image(f3d_mat.tex0.tex)
           self.shader.uniform_sampler("tex0", gpuTex0)
