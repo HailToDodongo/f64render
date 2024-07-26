@@ -24,7 +24,7 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   tDes = time.process_time()
   
   color_layer = mesh.color_attributes.get("Col")
-  alpha_layer = mesh.color_attributes.get("Alpha") # TODO: merge into color
+  alpha_layer = mesh.color_attributes.get("Alpha")
   uv_layer = mesh.uv_layers.active.data if mesh.uv_layers.active else None
 
   num_faces = len(mesh.loop_triangles)
@@ -32,10 +32,12 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   print("Faces: ", num_corners, color_layer)
 
   positions = np.zeros((num_corners, 3), dtype=np.float32)
-  normals = np.zeros((num_corners, 3), dtype=np.float32)
-  indices = np.zeros((num_corners, ), dtype=np.int32)
+  normals   = np.zeros((num_corners, 3), dtype=np.float32)
+  colors    = np.zeros((num_corners, 4), dtype=np.float32)
+  uvs       = np.zeros((num_corners, 2), dtype=np.float32)
+  indices   = np.zeros((num_corners   ), dtype=np.int32  )
 
-  # map vertices to face-cornerg
+  # map vertices to face-corner
   vertex_positions = np.zeros((len(mesh.vertices), 3), dtype=np.float32)
   mesh.vertices.foreach_get('co', vertex_positions.ravel())
 
@@ -43,22 +45,28 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   vertex_normals = np.zeros((len(mesh.vertices), 3), dtype=np.float32)
   mesh.vertices.foreach_get('normal', vertex_normals.ravel())
 
-  # Populate the array with vertex positions for each face-corner
   face_corners_start = 0
   for face in mesh.loop_triangles:
-    indices[face_corners_star>t:face_corners_start + 3] = face.vertices
+    indices[face_corners_start:face_corners_start + 3] = face.vertices
     face_corners_start += 3
 
   normals = vertex_normals[indices]
   positions = vertex_positions[indices]
 
-  colors = np.zeros((num_corners * 4,), dtype=np.float32)  # RGBA
-  color_layer.data.foreach_get('color', colors)
-  colors.shape = (-1, 4)
+  # Now remap vertex color and UVs from the "face-corner" domain into a per-vertex domain
+  if color_layer: color_loop = color_layer.data
+  if alpha_layer: alpha_loop = alpha_layer.data
 
-  uvs = np.zeros((num_corners * 2,), dtype=np.float32)  # UV
-  uv_layer.foreach_get('uv', uvs)
-  uvs.shape = (-1, 2)
+  target_idx = 0
+  for face in mesh.loop_triangles:
+    for j in range(3): # 3 vertices per face
+      loop_index = face.loops[j]
+      
+      if color_loop: colors[target_idx] = color_loop[loop_index].color
+      if alpha_loop: colors[target_idx][3] = alpha_loop[loop_index].color[0]
+      uvs[target_idx] = uv_layer[loop_index].uv
+
+      target_idx += 1
 
   print(" - Mesh", (time.process_time() - tDes) * 1000)
 

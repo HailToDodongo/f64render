@@ -1,4 +1,5 @@
 import bpy
+from bpy.app.handlers import persistent
 import gpu
 from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix
@@ -75,12 +76,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       if obj.type == 'MESH':                
               
         meshName = obj.data.name        
+
         if not meshName in f64render_meshCache:
           mesh = obj.evaluated_get(depsgraph).to_mesh()
           f64render_meshCache[meshName] = mesh_to_buffers(mesh)
         
         meshBuffers = f64render_meshCache[meshName]
-            
+
         # Shader uniforms
         material = None
         
@@ -141,28 +143,32 @@ def get_panels():
 
     return panels
 
-
+@persistent
 def mesh_change_listener(scene, depsgraph):
     global f64render_meshCache
-    
+  
     # check if we need to iterate through updates at all
     if not depsgraph.id_type_updated('MESH'):
-        return
+       return
 
+    # @TODO: when in edit mode, all objects are rendered as usual, except the currently edited one
+    #        in the actual draw there seems to be a new object called "Mesh" which doesn't appear in the scene
+    #        this seems to be incompatible with the cache / rendering (?), at least nothing is shown in that case (or a "ghost" if reloaded in dev mode)
     for update in depsgraph.updates:
-        if isinstance(update.id, bpy.types.Mesh):
-            print('Mesh \"{}\" updated.'.format(update.id.name))
-            
-            mesh = update.id
-            # mesh = update.id.evaluated_get(depsgraph)
-            f64render_meshCache[update.id.name] = mesh_to_buffers(mesh)
-            # do_your_stuff(update.id)
+      if isinstance(update.id, bpy.types.Mesh):
+        print('Mesh \"{}\" updated.'.format(update.id.name))
+        print(f64render_meshCache.keys())
+
+        if update.id.name in f64render_meshCache:
+          del f64render_meshCache[update.id.name]
 
 def register():
   global f64render_meshCache
   f64render_meshCache = {}
   # bpy.utils.register_class(Fast64RenderEngine)
-  bpy.app.handlers.depsgraph_update_post.append(mesh_change_listener)
+  if not mesh_change_listener in bpy.app.handlers.depsgraph_update_post:
+    bpy.app.handlers.depsgraph_update_post.append(mesh_change_listener)
+
   bpy.types.RenderEngine.f64_render_engine = bpy.props.PointerProperty(type=Fast64RenderEngine)
   for panel in get_panels():
     panel.COMPAT_ENGINES.add('FAST64_RENDER_ENGINE')
@@ -170,8 +176,6 @@ def register():
 def unregister():
   global f64render_meshCache
   f64render_meshCache = {}
-  if mesh_change_listener in bpy.app.handlers.depsgraph_update_post:
-    bpy.app.handlers.depsgraph_update_post.remove(mesh_change_listener)
 
   # bpy.utils.unregister_class(Fast64RenderEngine)
   del bpy.types.RenderEngine.f64_render_engine
