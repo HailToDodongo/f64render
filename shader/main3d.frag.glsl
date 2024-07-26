@@ -55,34 +55,37 @@ float cc_fetchAlpha(in int val, in vec4 comb)
 
 void main() 
 {
-  vec4 cc0[4];
-  vec4 cc1[4];
+  vec4 cc0[4]; // inputs for 1. cycle
+  vec4 cc1[4]; // inputs for 2. cycle
+  vec4 ccValue = vec4(0.0); // result after 1/2 cycle
 
-  vec4 colorOut = vec4(1.0, 1.0, 1.0, 1.0);
+  cc0[0].rgb = cc_fetchColor(cc0Color.x, ccValue);
+  cc0[1].rgb = cc_fetchColor(cc0Color.y, ccValue);
+  cc0[2].rgb = cc_fetchColor(cc0Color.z, ccValue);
+  cc0[3].rgb = cc_fetchColor(cc0Color.w, ccValue);
 
-  cc0[0].rgb = cc_fetchColor(cc0Color.x, vec4(1.0));
-  cc0[1].rgb = cc_fetchColor(cc0Color.y, vec4(1.0));
-  cc0[2].rgb = cc_fetchColor(cc0Color.z, vec4(1.0));
-  cc0[3].rgb = cc_fetchColor(cc0Color.w, vec4(1.0));
+  cc0[0].a = cc_fetchAlpha(cc0Alpha.x, ccValue);
+  cc0[1].a = cc_fetchAlpha(cc0Alpha.y, ccValue);
+  cc0[2].a = cc_fetchAlpha(cc0Alpha.z, ccValue);
+  cc0[3].a = cc_fetchAlpha(cc0Alpha.w, ccValue);
 
-  cc0[0].a = cc_fetchAlpha(cc0Alpha.x, vec4(1.0));
-  cc0[1].a = cc_fetchAlpha(cc0Alpha.y, vec4(1.0));
-  cc0[2].a = cc_fetchAlpha(cc0Alpha.z, vec4(1.0));
-  cc0[3].a = cc_fetchAlpha(cc0Alpha.w, vec4(1.0));
+  ccValue = (cc0[0] - cc0[1]) * cc0[2] + cc0[3];
 
-  vec4 cycle0 = (cc0[0] - cc0[1]) * cc0[2] + cc0[3];
+  // @TODO: over-/underflow shenanigans
 
-  cc1[0].rgb = cc_fetchColor(cc1Color.x, cycle0);
-  cc1[1].rgb = cc_fetchColor(cc1Color.y, cycle0);
-  cc1[2].rgb = cc_fetchColor(cc1Color.z, cycle0);
-  cc1[3].rgb = cc_fetchColor(cc1Color.w, cycle0);
+  cc1[0].rgb = cc_fetchColor(cc1Color.x, ccValue);
+  cc1[1].rgb = cc_fetchColor(cc1Color.y, ccValue);
+  cc1[2].rgb = cc_fetchColor(cc1Color.z, ccValue);
+  cc1[3].rgb = cc_fetchColor(cc1Color.w, ccValue);
 
-  cc1[0].a = cc_fetchAlpha(cc1Alpha.x, cycle0);
-  cc1[1].a = cc_fetchAlpha(cc1Alpha.y, cycle0);
-  cc1[2].a = cc_fetchAlpha(cc1Alpha.z, cycle0);
-  cc1[3].a = cc_fetchAlpha(cc1Alpha.w, cycle0);
+  cc1[0].a = cc_fetchAlpha(cc1Alpha.x, ccValue);
+  cc1[1].a = cc_fetchAlpha(cc1Alpha.y, ccValue);
+  cc1[2].a = cc_fetchAlpha(cc1Alpha.z, ccValue);
+  cc1[3].a = cc_fetchAlpha(cc1Alpha.w, ccValue);
 
-  vec4 ccFinal = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
-  // if(ccFinal.a < alphaThreshold) discard; // @TODO: alpha threshold
-  FragColor = ccFinal;
+  // @TODO: over-/underflow shenanigans
+
+  ccValue = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
+  // if(ccValue.a < alphaThreshold) discard; // @TODO: alpha threshold
+  FragColor = ccValue;
 }

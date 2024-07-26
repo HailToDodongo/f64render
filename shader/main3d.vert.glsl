@@ -52,6 +52,9 @@ void main()
 
   uv = inUV;
 
+  // @TODO: apply tile-settings
+  // @TODO: uvgen (f3d + t3d)
+
   // forward CC (@TODO: do part of this here? e.g. prim/env/shade etc.)
   cc0Color = inCC0Color;
   cc0Alpha = inCC0Alpha;
