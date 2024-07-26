@@ -2,7 +2,7 @@ import bpy
 from bpy.app.handlers import persistent
 import gpu
 from gpu_extras.batch import batch_for_shader
-from mathutils import Matrix
+from .material.cc import get_cc_settings
 import pathlib
 import time
 import numpy as np
@@ -72,6 +72,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.shader.uniform_float("lightColor", lightColor)
     self.shader.uniform_float("ambientColor", ambientColor)
 
+    # @TODO: according to the docs you can re-use 'batch.draw' later in the code (?)
+    #        in any case, only re-assign material settings if they changed
+
     for obj in depsgraph.objects:
       if obj.type == 'MESH':                
               
@@ -100,7 +103,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
         self.shader.uniform_float("colorPrim", f3d_mat.prim_color)
         self.shader.uniform_float("colorEnv", f3d_mat.env_color)
-        
+
+        cc_settings = get_cc_settings(f3d_mat)
+        self.shader.uniform_int("inCC0Color", cc_settings.cc0_color)
+        self.shader.uniform_int("inCC0Alpha", cc_settings.cc0_alpha)
+        self.shader.uniform_int("inCC1Color", cc_settings.cc1_color)
+        self.shader.uniform_int("inCC1Alpha", cc_settings.cc1_alpha)
+
         # Draw object
         batch = batch_for_shader(self.shader, 'TRIS', {
           "inPos": meshBuffers.vert,

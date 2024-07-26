@@ -1,19 +1,37 @@
 uniform mat4 matMVP;
 
-uniform vec4 colorPrim;
-uniform vec4 colorEnv;
-
+// Lighting (will compute shade in the end)
 uniform vec4 lightColor;
 uniform vec3 lightDir;
 uniform vec4 ambientColor;
 
+// CC inputs
+uniform vec4 colorPrim;
+uniform vec4 colorEnv;
+
+// CC config
+uniform ivec4 inCC0Color;
+uniform ivec4 inCC0Alpha;
+uniform ivec4 inCC1Color;
+uniform ivec4 inCC1Alpha;
+
+// VBO data
 in vec3 inPos;
 in vec3 inNormal;
 in vec4 inColor;
 in vec2 inUV;
 
-out vec4 colorShade;
+// CC inputs for fragment shader
+out vec4 cc_shade;
+out vec4 cc_env;
+out vec4 cc_prim;
 out vec2 uv;
+
+// CC settings (enum)
+out flat ivec4 cc0Color;
+out flat ivec4 cc0Alpha;
+out flat ivec4 cc1Color;
+out flat ivec4 cc1Alpha;
 
 void main() 
 {
@@ -25,15 +43,20 @@ void main()
   lightTotal += vec4(ambientColor.rgb, 0.0);
   
   // Ambient light
-  colorShade = colorPrim * lightTotal;
-  colorShade.a = 1.0;
+  cc_shade = lightTotal;
+  cc_shade.a = 1.0;
+  cc_shade *= inColor;
 
-  if(colorEnv.a == 0.5) { // bs to keep env color
-    colorShade *= colorEnv;
-  }
+  cc_env = colorEnv;
+  cc_prim = colorPrim;
 
-  colorShade *= inColor;
   uv = inUV;
+
+  // forward CC (@TODO: do part of this here? e.g. prim/env/shade etc.)
+  cc0Color = inCC0Color;
+  cc0Alpha = inCC0Alpha;
+  cc1Color = inCC1Color;
+  cc1Alpha = inCC1Alpha;
 
   gl_Position = matMVP * vec4(inPos, 1.0);
 }
