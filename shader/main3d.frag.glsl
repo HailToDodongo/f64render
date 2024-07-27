@@ -17,8 +17,8 @@ out vec4 FragColor;
 vec3 cc_fetchColor(in int val, in vec4 comb)
 {
        if(val == CC_C_COMB       ) return comb.rgb;
-  else if(val == CC_C_TEX0       ) return texture_3point(tex0, uv).rgb;
-  else if(val == CC_C_TEX1       ) return texture_3point(tex1, uv).rgb;
+  else if(val == CC_C_TEX0       ) return linearToGamma(texture_3point(tex0, uv).rgb);
+  else if(val == CC_C_TEX1       ) return linearToGamma(texture_3point(tex1, uv).rgb);
   else if(val == CC_C_PRIM       ) return cc_prim.rgb;
   else if(val == CC_C_SHADE      ) return cc_shade.rgb;
   else if(val == CC_C_ENV        ) return cc_env.rgb;
@@ -53,7 +53,19 @@ float cc_fetchAlpha(in int val, in vec4 comb)
   return 0.0; // default: CC_A_0
 }
 
-void main() 
+/**
+ * handles both CC clamping and overflow:
+ *        x ≤ -0.5: wrap around
+ * -0.5 ≥ x ≤  1.5: clamp to 0-1
+ *  1.5 < x       : wrap around
+ */
+vec4 cc_clampValue(in vec4 value)
+{
+  vec4 cycle = mod(value + 0.5, 2.0) - 0.5;
+  return clamp(cycle, 0.0, 1.0);
+}
+
+void main()
 {
   vec4 cc0[4]; // inputs for 1. cycle
   vec4 cc1[4]; // inputs for 2. cycle
@@ -71,8 +83,6 @@ void main()
 
   ccValue = (cc0[0] - cc0[1]) * cc0[2] + cc0[3];
 
-  // @TODO: over-/underflow shenanigans
-
   cc1[0].rgb = cc_fetchColor(cc1Color.x, ccValue);
   cc1[1].rgb = cc_fetchColor(cc1Color.y, ccValue);
   cc1[2].rgb = cc_fetchColor(cc1Color.z, ccValue);
@@ -83,9 +93,9 @@ void main()
   cc1[2].a = cc_fetchAlpha(cc1Alpha.z, ccValue);
   cc1[3].a = cc_fetchAlpha(cc1Alpha.w, ccValue);
 
-  // @TODO: over-/underflow shenanigans
-
   ccValue = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
-  // if(ccValue.a < alphaThreshold) discard; // @TODO: alpha threshold
+  ccValue = cc_clampValue(ccValue);
+
+  ccValue.rgb = gammaToLinear(ccValue.rgb);
   FragColor = ccValue;
 }

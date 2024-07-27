@@ -46,9 +46,10 @@ void main()
   cc_shade = lightTotal;
   cc_shade.a = 1.0;
   cc_shade *= inColor;
+  cc_shade = clamp(cc_shade, 0.0, 1.0);
 
-  cc_env = colorEnv;
-  cc_prim = colorPrim;
+  cc_env.rgb = linearToGamma(colorEnv.rgb);
+  cc_prim.rgb = linearToGamma(colorPrim.rgb);
 
   uv = inUV;
 

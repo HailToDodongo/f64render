@@ -31,8 +31,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       shaderVert = ""
       shaderFrag = ""
 
+      with open(shaderPath / "utils.glsl", "r", encoding="utf-8") as f:
+        shaderUtils = f.read()
+        shaderVert += shaderUtils
+        shaderFrag += shaderUtils
+
       with open(shaderPath / "main3d.vert.glsl", "r", encoding="utf-8") as f:
-        shaderVert = f.read()
+        shaderVert += f.read()
 
       with open(shaderPath / "defines.glsl", "r", encoding="utf-8") as f:
         shaderFrag += f.read()
