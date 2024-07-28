@@ -4,14 +4,21 @@ import numpy as np
 import bpy
 import bmesh
 import time
+import gpu
+from ..material.parser import F64Material
 
 # Container for all vertex attributes
 @dataclass
 class MeshBuffers:
-  vert: np.ndarray
-  color: np.ndarray
-  uv: np.ndarray
-  norm: np.ndarray
+  # input buffers:
+    vert: np.ndarray
+    color: np.ndarray
+    uv: np.ndarray
+    norm: np.ndarray
+  # render data:
+    batch: gpu.types.GPUBatch
+    material: F64Material = None
+    mesh_name: str = "" # multiple obj. can share the same mesh, store to allow deletion by name
 
 # Converts a blender mesh into buffers to be used by the GPU renderer
 # Note that this can be a slow process, so it should be cached externally
@@ -74,4 +81,4 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
 
   print(" - Mesh", (time.process_time() - tDes) * 1000)
 
-  return MeshBuffers(positions, colors, uvs, normals)
+  return MeshBuffers(positions, colors, uvs, normals, None)
