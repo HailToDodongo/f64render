@@ -104,6 +104,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         if obj.material_slots:
           f3d_mat = obj.material_slots[0].material.f3d_mat                    
 
+        if not f3d_mat:
+          continue
+
         # gpu.state.blend_set('ALPHA') # Alpha blend
 
         # Face Culling

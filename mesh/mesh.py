@@ -54,19 +54,23 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   positions = vertex_positions[indices]
 
   # Now remap vertex color and UVs from the "face-corner" domain into a per-vertex domain
-  if color_layer: color_loop = color_layer.data
-  if alpha_layer: alpha_loop = alpha_layer.data
+  if color_layer:
+    color_loop = color_layer.data
+    alpha_loop = alpha_layer.data
 
-  target_idx = 0
-  for face in mesh.loop_triangles:
-    for j in range(3): # 3 vertices per face
-      loop_index = face.loops[j]
-      
-      if color_loop: colors[target_idx] = color_loop[loop_index].color
-      if alpha_loop: colors[target_idx][3] = alpha_loop[loop_index].color[0]
-      uvs[target_idx] = uv_layer[loop_index].uv
+    target_idx = 0
+    for face in mesh.loop_triangles:
+      for j in range(3): # 3 vertices per face
+        loop_index = face.loops[j]
+        
+        colors[target_idx] = color_loop[loop_index].color
+        colors[target_idx][3] = alpha_loop[loop_index].color[0]
+        uvs[target_idx] = uv_layer[loop_index].uv
 
-      target_idx += 1
+        target_idx += 1
+  else:
+    colors.fill(1.0)
+    uvs.fill(0.0)
 
   print(" - Mesh", (time.process_time() - tDes) * 1000)
 
