@@ -14,6 +14,7 @@ uniform ivec4 inCC0Color;
 uniform ivec4 inCC0Alpha;
 uniform ivec4 inCC1Color;
 uniform ivec4 inCC1Alpha;
+uniform int inFlags;
 
 // VBO data
 in vec3 inPos;
@@ -23,6 +24,7 @@ in vec2 inUV;
 
 // CC inputs for fragment shader
 out vec4 cc_shade;
+out flat vec4 cc_shade_flat;
 out vec4 cc_env;
 out vec4 cc_prim;
 out vec2 uv;
@@ -32,6 +34,7 @@ out flat ivec4 cc0Color;
 out flat ivec4 cc0Alpha;
 out flat ivec4 cc1Color;
 out flat ivec4 cc1Alpha;
+out flat int flags;
 
 void main() 
 {
@@ -47,11 +50,14 @@ void main()
   cc_shade.rgb = linearToGamma(lightTotal.rgb);
   cc_shade.a = 1.0;
   cc_shade *= inColor;
+  cc_shade_flat = cc_shade;
 
   cc_env.rgb = linearToGamma(colorEnv.rgb);
   cc_prim.rgb = linearToGamma(colorPrim.rgb);
 
   uv = inUV;
+
+  flags = inFlags;
 
   // @TODO: apply tile-settings
   // @TODO: uvgen (f3d + t3d)

@@ -11,6 +11,7 @@ class F64Material:
     color_env: np.ndarray
     cc: CCSettings = None
     cull: str = 'NONE'
+    flags: int = 0
     tex0Buff: gpu.types.GPUTexture = None
     tex1Buff: gpu.types.GPUTexture = None
 
@@ -40,6 +41,8 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
 
   if f3d_mat.rdp_settings.g_cull_back: f64mat.cull = "BACK"
   if f3d_mat.rdp_settings.g_cull_front: f64mat.cull = "FRONT"
+
+  f64mat.flags = int(not f3d_mat.rdp_settings.g_shade_smooth)
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
   if f3d_mat.tex0.tex:

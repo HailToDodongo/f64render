@@ -166,6 +166,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         self.shader.uniform_int("inCC0Alpha", f64mat.cc.cc0_alpha)
         self.shader.uniform_int("inCC1Color", f64mat.cc.cc1_color)
         self.shader.uniform_int("inCC1Alpha", f64mat.cc.cc1_alpha)
+        self.shader.uniform_int("inFlags", f64mat.flags)
 
         # Draw object
         if renderObj.batch is None:

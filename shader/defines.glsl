@@ -32,3 +32,6 @@
 #define CC_A_PRIM_LOD_FRAC 6
 #define CC_A_1             6
 #define CC_A_0             7
+
+// Draw flags (custom for the shader)
+#define DRAW_FLAG_FLATSHADE (1 << 0)

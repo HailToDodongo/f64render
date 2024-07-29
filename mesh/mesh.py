@@ -51,9 +51,22 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   mesh.vertices.foreach_get('co', tmp_vec3.ravel())
   positions = tmp_vec3[indices]
 
-  # map normals to unique face-corner
+  # determine if smooth shading is used
+  use_flat = np.empty(len(mesh.loop_triangles), dtype=np.int8)
+  mesh.loop_triangles.foreach_get('use_smooth', use_flat)
+  use_smooth = use_flat.repeat(3)
+  use_flat = 1 - use_flat
+
+  # fetch and mask smooth normals
   mesh.vertices.foreach_get('normal', tmp_vec3.ravel())
   normals = tmp_vec3[indices]
+  normals *= use_smooth[:,np.newaxis] # mask out
+
+  # fetch and merge flat-shaded normals
+  tmp_vec3_norm = np.empty((len(mesh.loop_triangles), 3), dtype=np.float32)
+  mesh.loop_triangles.foreach_get('normal', tmp_vec3_norm.ravel())
+  tmp_vec3_norm *= use_flat[:,np.newaxis] # mask out
+  normals += np.repeat(tmp_vec3_norm, 3, axis=0)
 
   mesh.loop_triangles.foreach_get('loops', indices)
   
