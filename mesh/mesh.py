@@ -15,8 +15,9 @@ class MeshBuffers:
     color: np.ndarray
     uv: np.ndarray
     norm: np.ndarray
+    indices: list[np.ndarray]
   # render data:
-    batch: gpu.types.GPUBatch
+    batch: list[gpu.types.GPUBatch]
     material: F64Material = None
     mesh_name: str = "" # multiple obj. can share the same mesh, store to allow deletion by name
 
@@ -87,7 +88,14 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
 
   else:
     colors.fill(1.0)
-
+  
+  # create index buffers for the mesh by material, the data behind it is unindexed
+  # this is done to do a cheap split by material
+  mesh.loop_triangles.foreach_get('material_index', use_flat) # materials, e.g.: [0, 1, 0, 1, 2, 1, ...]
+  index_array = np.arange(num_corners, dtype=np.int32) # -> [0, 1, 2, 3, 4, 5, ...]
+  index_array = index_array.reshape((-1, 3))           # -> [[0, 1, 2], [3, 4, 5], ...]
+  index_array = [index_array[use_flat == i] for i in range(use_flat.max() + 1)]
+  
   print(" - Mesh", (time.process_time() - tDes) * 1000)
 
-  return MeshBuffers(positions, colors, uvs, normals, None)
+  return MeshBuffers(positions, colors, uvs, normals, index_array, None)

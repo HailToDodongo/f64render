@@ -139,6 +139,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           mesh = obj.evaluated_get(depsgraph).to_mesh()
           f64render_meshCache[meshID] = mesh_to_buffers(mesh)
           f64render_meshCache[meshID].mesh_name = obj.data.name
+          f64render_meshCache[meshID].batch = [None] * len(obj.material_slots)
           obj.to_mesh_clear()
         
         if not obj_has_f3d_materials(obj):
@@ -148,41 +149,43 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         # print("  -> Draw object", meshID)
         renderObj = f64render_meshCache[meshID]
 
-        # don't cache material here (@TODO: see if a dirty-flag in fast64 can help)
-        f3d_mat = obj.material_slots[0].material.f3d_mat                    
-        renderObj.material = f64_material_parse(f3d_mat, renderObj.material)
-
-        # gpu.st  ate.blend_set('ALPHA') # @TODO: Alpha blend
-
-        f64mat = renderObj.material
-        gpu.state.face_culling_set(f64mat.cull)
-        
-        if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
-        if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
-
-        self.shader.uniform_float("colorPrim", f64mat.color_prim)
-        self.shader.uniform_float("colorEnv", f64mat.color_env)
-        self.shader.uniform_int("inCC0Color", f64mat.cc.cc0_color)
-        self.shader.uniform_int("inCC0Alpha", f64mat.cc.cc0_alpha)
-        self.shader.uniform_int("inCC1Color", f64mat.cc.cc1_color)
-        self.shader.uniform_int("inCC1Alpha", f64mat.cc.cc1_alpha)
-        self.shader.uniform_int("inFlags", f64mat.flags)
-
-        # Draw object
-        if renderObj.batch is None:
-          renderObj.batch = batch_for_shader(self.shader, 'TRIS', {
-            "inPos"   : renderObj.vert,
-            "inNormal": renderObj.norm,
-            "inColor" : renderObj.color,
-            "inUV"    : renderObj.uv
-          })
-
         modelview_matrix = obj.matrix_world
         projection_matrix = context.region_data.perspective_matrix
         mvp_matrix = projection_matrix @ modelview_matrix
         self.shader.uniform_float("matMVP", mvp_matrix)
 
-        renderObj.batch.draw(self.shader)
+        material_idx = 0        
+        for slot in obj.material_slots:
+          f3d_mat = slot.material.f3d_mat                    
+          renderObj.material = f64_material_parse(f3d_mat, renderObj.material)
+
+          # gpu.state.blend_set('ALPHA') # @TODO: Alpha blend
+
+          f64mat = renderObj.material
+          gpu.state.face_culling_set(f64mat.cull)
+          
+          if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
+          if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
+
+          self.shader.uniform_float("colorPrim", f64mat.color_prim)
+          self.shader.uniform_float("colorEnv", f64mat.color_env)
+          self.shader.uniform_int("inCC0Color", f64mat.cc.cc0_color)
+          self.shader.uniform_int("inCC0Alpha", f64mat.cc.cc0_alpha)
+          self.shader.uniform_int("inCC1Color", f64mat.cc.cc1_color)
+          self.shader.uniform_int("inCC1Alpha", f64mat.cc.cc1_alpha)
+          self.shader.uniform_int("inFlags", f64mat.flags)
+
+          # Draw object (@TODO: is batch_for_shader smart enough to not re-upload vertices?)
+          if renderObj.batch[material_idx] is None:
+            renderObj.batch[material_idx] = batch_for_shader(self.shader, 'TRIS', {
+              "inPos"   : renderObj.vert,
+              "inNormal": renderObj.norm,
+              "inColor" : renderObj.color,
+              "inUV"    : renderObj.uv
+            }, indices=renderObj.indices[material_idx])
+
+          renderObj.batch[material_idx].draw(self.shader)
+          material_idx += 1
 
     print("Time F3D (ms)", (time.process_time() - t) * 1000)
     t = time.process_time()
