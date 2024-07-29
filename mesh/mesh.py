@@ -70,7 +70,7 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
       for j in range(3): # 3 vertices per face
         loop_index = face.loops[j]
         
-        colors[target_idx] = color_loop[loop_index].color
+        colors[target_idx] = color_loop[loop_index].color_srgb
         colors[target_idx][3] = alpha_loop[loop_index].color[0]
         uvs[target_idx] = uv_layer[loop_index].uv
 

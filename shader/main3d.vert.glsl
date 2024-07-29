@@ -41,13 +41,12 @@ void main()
   vec4 lightTotal = lightColor * lightStren;
 
   lightTotal += vec4(ambientColor.rgb, 0.0);
+  lightTotal = clamp(lightTotal, 0.0, 1.0);  
   
   // Ambient light
-  cc_shade = lightTotal;
+  cc_shade.rgb = linearToGamma(lightTotal.rgb);
   cc_shade.a = 1.0;
   cc_shade *= inColor;
-  cc_shade.rgb = linearToGamma(cc_shade.rgb);
-  cc_shade = clamp(cc_shade, 0.0, 1.0);
 
   cc_env.rgb = linearToGamma(colorEnv.rgb);
   cc_prim.rgb = linearToGamma(colorPrim.rgb);
