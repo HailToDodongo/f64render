@@ -1,9 +1,7 @@
 import bpy
-from bpy.app.handlers import persistent
 import gpu
 from gpu_extras.batch import batch_for_shader
-from .material.parser import F64Material, f64_material_parse, node_material_parse
-from .material.cc import get_cc_settings
+from .material.parser import create_f64_material, f64_material_parse, node_material_parse
 import pathlib
 import time
 import numpy as np
@@ -197,7 +195,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
         # get material (we don't expect any changes here, so caching is fine)
         if renderObj.material is None:
-          renderObj.material = F64Material()
+          renderObj.material = create_f64_material()
           if obj.material_slots:
             mat = obj.material_slots[0].material
             renderObj.material = node_material_parse(mat)

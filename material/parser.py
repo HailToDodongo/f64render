@@ -7,12 +7,18 @@ from .cc import CCSettings, get_cc_settings
 
 @dataclass
 class F64Material:
-    color_prim: np.ndarray = np.array([1, 1, 1, 1], dtype=np.float32)
-    color_env: np.ndarray = np.array([1, 1, 1, 1], dtype=np.float32)
+    color_prim: np.ndarray
+    color_env: np.ndarray
     cc: CCSettings = None
     cull: str = 'NONE'
     tex0Buff: gpu.types.GPUTexture = None
     tex1Buff: gpu.types.GPUTexture = None
+
+def create_f64_material():
+  return F64Material(
+     np.array([1, 1, 1, 1], dtype=np.float32),
+     np.array([1, 1, 1, 1], dtype=np.float32),
+  )
 
 # parses a non-f3d material for the fallback renderer
 def node_material_parse(mat: bpy.types.Material) -> F64Material:
@@ -23,7 +29,7 @@ def node_material_parse(mat: bpy.types.Material) -> F64Material:
       base_color = bsdf.inputs['Base Color'].default_value
       color = np.array([base_color[0], base_color[1], base_color[2], 1], dtype=np.float32)
 
-  return F64Material(color)
+  return F64Material(color, color)
 
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   f64mat = F64Material(
@@ -37,6 +43,8 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
   if f3d_mat.tex0.tex:
+      # f3d_mat.tex0.S.low
+      # f3d_mat.tex0.T.low
       f64mat.tex0Buff = gpu.texture.from_image(f3d_mat.tex0.tex)
 
   if f3d_mat.tex1.tex:
