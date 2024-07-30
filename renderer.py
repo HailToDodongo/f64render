@@ -269,8 +269,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
                   
         self.shader_fallback.uniform_float("color", renderObj.material.color_prim)
 
-        if renderObj.batch is None:
-          renderObj.batch = batch_for_shader(self.shader_fallback, 'TRIS', {
+        if renderObj.batch[0] is None:
+          renderObj.batch[0] = batch_for_shader(self.shader_fallback, 'TRIS', {
             "pos": renderObj.vert,
           })
 
@@ -279,7 +279,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         mvp_matrix = projection_matrix @ modelview_matrix
         self.shader_fallback.uniform_float("ModelViewProjectionMatrix", mvp_matrix)
 
-        renderObj.batch.draw(self.shader_fallback)
+        renderObj.batch[0].draw(self.shader_fallback)
         obj.to_mesh_clear()
 
     print("Time fallback (ms)", (time.process_time() - t) * 1000)
