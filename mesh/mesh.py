@@ -15,9 +15,10 @@ class MeshBuffers:
     color: np.ndarray
     uv: np.ndarray
     norm: np.ndarray
-    indices: list[np.ndarray]
+    indices: np.ndarray # global index array, sorted by material
+    index_offsets: np.ndarray # offsets for each material in the index array
   # render data:
-    batch: list[gpu.types.GPUBatch]    
+    batch: gpu.types.GPUBatch
     cc_data: list[np.ndarray]
     cc_conf: list[np.ndarray]
     ubo_cc_data: list[gpu.types.GPUUniformBuf]
@@ -98,8 +99,12 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   mesh.loop_triangles.foreach_get('material_index', use_flat) # materials, e.g.: [0, 1, 0, 1, 2, 1, ...]
   index_array = np.arange(num_corners, dtype=np.int32) # -> [0, 1, 2, 3, 4, 5, ...]
   index_array = index_array.reshape((-1, 3))           # -> [[0, 1, 2], [3, 4, 5], ...]
-  index_array = [index_array[use_flat == i] for i in range(use_flat.max() + 1)]
   
+  index_array = index_array[np.argsort(use_flat)] # sort index_array by value in use_flat (aka material-index)
+  index_offsets = np.bincount(use_flat)           # now get counts of each material, e.g.: [1, 2] where index is material-index
+  index_offsets = np.insert(index_offsets, 0, 0)  # prepend 0 to turn counts into offsets
+  index_offsets = np.cumsum(index_offsets) * 3    # converted into accumulated offset / mul. by 3 for triangles
+
   print(" - Mesh", (time.process_time() - tDes) * 1000)
 
-  return MeshBuffers(positions, colors, uvs, normals, index_array, None, None, None, None, None)
+  return MeshBuffers(positions, colors, uvs, normals, index_array, index_offsets, None, None, None, None, None)

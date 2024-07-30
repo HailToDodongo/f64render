@@ -1,16 +1,15 @@
 import bpy
 import gpu
-from gpu_extras.batch import batch_for_shader
-from .mesh.gpu_batch import multi_batch_for_shader
+from .mesh.gpu_batch import batch_for_shader
 from .material.parser import create_f64_material, f64_material_parse, node_material_parse
 import pathlib
 import time
 import numpy as np
 
-from .mesh.mesh import mesh_to_buffers
+from .mesh.mesh import MeshBuffers, mesh_to_buffers
 
 f64render_instance = None
-f64render_meshCache = {}
+f64render_meshCache: dict[MeshBuffers] = {}
 
 def cache_del_by_mesh(mesh_name):
   global f64render_meshCache
@@ -68,9 +67,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
       shader_info = gpu.types.GPUShaderCreateInfo()
       
-      vert_out = gpu.types.GPUStageInterfaceInfo("vert_interface")
-      vert_out.smooth('VEC3', "pos")
-      
       shader_info.typedef_source(
         "struct UBO_CCData { \
           vec4 lightColor; \
@@ -86,6 +82,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         };")
       
       # vertex -> fragment
+      vert_out = gpu.types.GPUStageInterfaceInfo("vert_interface")
       vert_out.no_perspective("VEC4", "cc_shade")
       vert_out.flat("VEC4", "cc_shade_flat")
       vert_out.smooth("VEC4", "cc_env")
@@ -101,7 +98,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       shader_info.uniform_buf(0, "UBO_CCData", "ccData")
       shader_info.uniform_buf(1, "UBO_CCConf", "ccConf")
       
-      shader_info.vertex_in(0, "VEC3", "inPos")
+      shader_info.vertex_in(0, "VEC3", "pos") # keep blenders name keep for better compat.
       shader_info.vertex_in(1, "VEC3", "inNormal")
       shader_info.vertex_in(2, "VEC4", "inColor")
       shader_info.vertex_in(3, "VEC2", "inUV")
@@ -191,7 +188,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           renderObj.mesh_name = obj.data.name
 
           mat_count = len(obj.material_slots)
-          renderObj.batch = multi_batch_for_shader(self.shader,
+          renderObj.batch = batch_for_shader(self.shader,
             renderObj.vert,
             renderObj.norm,
             renderObj.color,
@@ -215,7 +212,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           continue
           
         # print("  -> Draw object", meshID)
-        renderObj = f64render_meshCache[meshID]
+        renderObj: MeshBuffers = f64render_meshCache[meshID]
 
         modelview_matrix = obj.matrix_world
         projection_matrix = context.region_data.perspective_matrix
@@ -248,7 +245,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           renderObj.ubo_cc_conf[mat_idx].update(f64mat.cc)
           self.shader.uniform_block("ccConf", renderObj.ubo_cc_conf[mat_idx])
 
-          renderObj.batch[mat_idx].draw(self.shader)
+          indices_count = renderObj.index_offsets[mat_idx+1] - renderObj.index_offsets[mat_idx]
+          renderObj.batch.draw_range(self.shader, elem_start=renderObj.index_offsets[mat_idx], elem_count=indices_count)
           mat_idx += 1
 
     print("Time F3D (ms)", (time.process_time() - t) * 1000)
@@ -267,20 +265,15 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if obj.material_slots:
             mat = obj.material_slots[0].material
             renderObj.material = node_material_parse(mat)
-                  
-        self.shader_fallback.uniform_float("color", renderObj.material.color_prim)
 
-        if renderObj.batch[0] is None:
-          renderObj.batch[0] = batch_for_shader(self.shader_fallback, 'TRIS', {
-            "pos": renderObj.vert,
-          })
+        self.shader_fallback.uniform_float("color", renderObj.material.color_prim)
 
         modelview_matrix = obj.matrix_world
         projection_matrix = context.region_data.perspective_matrix
         mvp_matrix = projection_matrix @ modelview_matrix
         self.shader_fallback.uniform_float("ModelViewProjectionMatrix", mvp_matrix)
 
-        renderObj.batch[0].draw(self.shader_fallback)
+        renderObj.batch.draw(self.shader_fallback)
         obj.to_mesh_clear()
 
     print("Time fallback (ms)", (time.process_time() - t) * 1000)

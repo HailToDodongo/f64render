@@ -26,7 +26,7 @@ void main()
   // @TODO: uvgen (f3d + t3d)
   // forward CC (@TODO: do part of this here? e.g. prim/env/shade etc.)
 
-  gl_Position = matMVP * vec4(inPos, 1.0);
+  gl_Position = matMVP * vec4(pos, 1.0);
   posScreen = gl_Position.xy / gl_Position.w;
   
   // move the depth ever so slightly to avoid z-fighting with blenders own overlays
