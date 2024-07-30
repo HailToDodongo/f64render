@@ -51,11 +51,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         shaderVert += shaderUtils
         shaderFrag += shaderUtils
 
+      with open(shaderPath / "defines.glsl", "r", encoding="utf-8") as f:
+        shaderDef = f.read()
+        shaderVert += shaderDef
+        shaderFrag += shaderDef
+
       with open(shaderPath / "main3d.vert.glsl", "r", encoding="utf-8") as f:
         shaderVert += f.read()
-
-      with open(shaderPath / "defines.glsl", "r", encoding="utf-8") as f:
-        shaderFrag += f.read()
 
       with open(shaderPath / "3point.glsl", "r", encoding="utf-8") as f:
         shaderFrag += f.read()
@@ -63,7 +65,56 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       with open(shaderPath / "main3d.frag.glsl", "r", encoding="utf-8") as f:
         shaderFrag += f.read()
 
-      self.shader = gpu.types.GPUShader(shaderVert, shaderFrag)
+      shader_info = gpu.types.GPUShaderCreateInfo()
+      
+      vert_out = gpu.types.GPUStageInterfaceInfo("vert_interface")
+      vert_out.smooth('VEC3', "pos")
+      
+      shader_info.typedef_source(
+        "struct UBO_CCData { \
+          vec4 lightColor; \
+          vec4 lightDir; \
+          vec4 prim; \
+          vec4 env; \
+        }; \
+        struct UBO_CCConf { \
+          ivec4 cc0Color; \
+          ivec4 cc0Alpha; \
+          ivec4 cc1Color; \
+          ivec4 cc1Alpha; \
+        };")
+      
+      # vertex -> fragment
+      vert_out.smooth("VEC4", "cc_shade")
+      vert_out.flat("VEC4", "cc_shade_flat")
+      vert_out.smooth("VEC4", "cc_env")
+      vert_out.smooth("VEC4", "cc_prim")
+      vert_out.smooth("VEC2", "uv")
+      vert_out.smooth("VEC2", "posScreen")
+      vert_out.flat("INT", "flags")
+
+      
+      shader_info.push_constant("VEC4", "ambientColor")
+      shader_info.push_constant("MAT4", "matMVP")
+      shader_info.push_constant("INT", "inFlags")
+      
+      shader_info.uniform_buf(0, "UBO_CCData", "ccData")
+      shader_info.uniform_buf(1, "UBO_CCConf", "ccConf")
+      
+      shader_info.vertex_in(0, "VEC3", "inPos")
+      shader_info.vertex_in(1, "VEC3", "inNormal")
+      shader_info.vertex_in(2, "VEC4", "inColor")
+      shader_info.vertex_in(3, "VEC2", "inUV")
+      shader_info.vertex_out(vert_out)
+      
+      shader_info.sampler(0, "FLOAT_2D", "tex0")
+      shader_info.sampler(1, "FLOAT_2D", "tex1")
+      shader_info.fragment_out(0, "VEC4", "FragColor")
+
+      shader_info.vertex_source(shaderVert)
+      shader_info.fragment_source(shaderFrag)
+      
+      self.shader = gpu.shader.create_from_info(shader_info)      
       self.shader_fallback = gpu.shader.from_builtin('UNIFORM_COLOR')
 
   def mesh_change_listener(scene, depsgraph):
@@ -121,8 +172,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     lightColor = depsgraph.scene.fast64.renderSettings.lightColor
     ambientColor = depsgraph.scene.fast64.renderSettings.ambientColor
 
-    self.shader.uniform_float("lightDir", lightDir)
-    self.shader.uniform_float("lightColor", lightColor)
     self.shader.uniform_float("ambientColor", ambientColor)
 
     # @TODO: according to the docs you can re-use 'batch.draw' later in the code (?)
@@ -137,9 +186,19 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         if meshID not in f64render_meshCache:
           # print("    -> Update object", meshID)
           mesh = obj.evaluated_get(depsgraph).to_mesh()
-          f64render_meshCache[meshID] = mesh_to_buffers(mesh)
-          f64render_meshCache[meshID].mesh_name = obj.data.name
-          f64render_meshCache[meshID].batch = [None] * len(obj.material_slots)
+          renderObj = f64render_meshCache[meshID] = mesh_to_buffers(mesh)
+          renderObj.mesh_name = obj.data.name
+          renderObj.batch = [None] * len(obj.material_slots)
+          
+          renderObj.cc_data = [np.zeros(4*4, dtype=np.float32)] * len(obj.material_slots)
+          renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * len(obj.material_slots)
+          
+          renderObj.ubo_cc_data = [None] * len(obj.material_slots)
+          renderObj.ubo_cc_conf = [None] * len(obj.material_slots)
+          for i in range(len(obj.material_slots)):
+            renderObj.ubo_cc_data[i] = gpu.types.GPUUniformBuf(renderObj.cc_data[i])
+            renderObj.ubo_cc_conf[i] = gpu.types.GPUUniformBuf(renderObj.cc_conf[i])
+            
           obj.to_mesh_clear()
         
         if not obj_has_f3d_materials(obj):
@@ -154,7 +213,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         mvp_matrix = projection_matrix @ modelview_matrix
         self.shader.uniform_float("matMVP", mvp_matrix)
 
-        material_idx = 0        
+        mat_idx = 0        
         for slot in obj.material_slots:
           f3d_mat = slot.material.f3d_mat                    
           renderObj.material = f64_material_parse(f3d_mat, renderObj.material)
@@ -166,26 +225,31 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
-
-          self.shader.uniform_float("colorPrim", f64mat.color_prim)
-          self.shader.uniform_float("colorEnv", f64mat.color_env)
-          self.shader.uniform_int("inCC0Color", f64mat.cc.cc0_color)
-          self.shader.uniform_int("inCC0Alpha", f64mat.cc.cc0_alpha)
-          self.shader.uniform_int("inCC1Color", f64mat.cc.cc1_color)
-          self.shader.uniform_int("inCC1Alpha", f64mat.cc.cc1_alpha)
-          self.shader.uniform_int("inFlags", f64mat.flags)
+          self.shader.uniform_float("inFlags", f64mat.flags)
+                    
+          renderObj.cc_data[mat_idx][0:4] = lightColor
+          renderObj.cc_data[mat_idx][4:7] = lightDir
+          renderObj.cc_data[mat_idx][8:12] = f64mat.color_prim
+          renderObj.cc_data[mat_idx][12:16] = f64mat.color_env
+          
+          renderObj.ubo_cc_data[mat_idx].update(renderObj.cc_data[mat_idx])                        
+          self.shader.uniform_block("ccData", renderObj.ubo_cc_data[mat_idx])
+          
+          # renderObj.cc_conf[mat_idx][0:16] = f64mat.cc
+          renderObj.ubo_cc_conf[mat_idx].update(f64mat.cc)
+          self.shader.uniform_block("ccConf", renderObj.ubo_cc_conf[mat_idx])
 
           # Draw object (@TODO: is batch_for_shader smart enough to not re-upload vertices?)
-          if renderObj.batch[material_idx] is None:
-            renderObj.batch[material_idx] = batch_for_shader(self.shader, 'TRIS', {
+          if renderObj.batch[mat_idx] is None:
+            renderObj.batch[mat_idx] = batch_for_shader(self.shader, 'TRIS', {
               "inPos"   : renderObj.vert,
               "inNormal": renderObj.norm,
               "inColor" : renderObj.color,
               "inUV"    : renderObj.uv
-            }, indices=renderObj.indices[material_idx])
+            }, indices=renderObj.indices[mat_idx])
 
-          renderObj.batch[material_idx].draw(self.shader)
-          material_idx += 1
+          renderObj.batch[mat_idx].draw(self.shader)
+          mat_idx += 1
 
     print("Time F3D (ms)", (time.process_time() - t) * 1000)
     t = time.process_time()

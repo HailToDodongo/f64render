@@ -1,20 +1,3 @@
-in vec4 cc_shade;
-in flat vec4 cc_shade_flat;
-in vec4 cc_env;
-in vec4 cc_prim;
-
-in vec2 uv;
-
-in flat ivec4 cc0Color;
-in flat ivec4 cc0Alpha;
-in flat ivec4 cc1Color;
-in flat ivec4 cc1Alpha;
-in flat int flags;
-
-uniform sampler2D tex0;
-uniform sampler2D tex1;
-
-out vec4 FragColor;
 
 vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb)
 {
@@ -34,7 +17,7 @@ vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb)
   else if(val == CC_C_ENV_ALPHA  ) return cc_env.aaa;
   // else if(val == CC_C_LOD_FRAC   ) return vec3(0.0); // @TODO
   // else if(val == CC_C_PRIM_LOD_FRAC) return vec3(0.0); // @TODO
-  // else if(val == CC_C_NOISE      ) return vec3(0.0); // @TODO
+  else if(val == CC_C_NOISE      ) return vec3(noise(posScreen*0.25)); // @TODO
   // else if(val == CC_C_K4         ) return vec3(0.0); // @TODO
   // else if(val == CC_C_K5         ) return vec3(0.0); // @TODO
   else if(val == CC_C_1          ) return vec3(1.0);
@@ -75,27 +58,27 @@ void main()
 
   vec4 ccShade = flagSelect(DRAW_FLAG_FLATSHADE, cc_shade, cc_shade_flat);
 
-  cc0[0].rgb = cc_fetchColor(cc0Color.x, ccShade, ccValue);
-  cc0[1].rgb = cc_fetchColor(cc0Color.y, ccShade, ccValue);
-  cc0[2].rgb = cc_fetchColor(cc0Color.z, ccShade, ccValue);
-  cc0[3].rgb = cc_fetchColor(cc0Color.w, ccShade, ccValue);
+  cc0[0].rgb = cc_fetchColor(ccConf.cc0Color.x, ccShade, ccValue);
+  cc0[1].rgb = cc_fetchColor(ccConf.cc0Color.y, ccShade, ccValue);
+  cc0[2].rgb = cc_fetchColor(ccConf.cc0Color.z, ccShade, ccValue);
+  cc0[3].rgb = cc_fetchColor(ccConf.cc0Color.w, ccShade, ccValue);
 
-  cc0[0].a = cc_fetchAlpha(cc0Alpha.x, ccShade, ccValue);
-  cc0[1].a = cc_fetchAlpha(cc0Alpha.y, ccShade, ccValue);
-  cc0[2].a = cc_fetchAlpha(cc0Alpha.z, ccShade, ccValue);
-  cc0[3].a = cc_fetchAlpha(cc0Alpha.w, ccShade, ccValue);
+  cc0[0].a = cc_fetchAlpha(ccConf.cc0Alpha.x, ccShade, ccValue);
+  cc0[1].a = cc_fetchAlpha(ccConf.cc0Alpha.y, ccShade, ccValue);
+  cc0[2].a = cc_fetchAlpha(ccConf.cc0Alpha.z, ccShade, ccValue);
+  cc0[3].a = cc_fetchAlpha(ccConf.cc0Alpha.w, ccShade, ccValue);
 
   ccValue = (cc0[0] - cc0[1]) * cc0[2] + cc0[3];
 
-  cc1[0].rgb = cc_fetchColor(cc1Color.x, ccShade, ccValue);
-  cc1[1].rgb = cc_fetchColor(cc1Color.y, ccShade, ccValue);
-  cc1[2].rgb = cc_fetchColor(cc1Color.z, ccShade, ccValue);
-  cc1[3].rgb = cc_fetchColor(cc1Color.w, ccShade, ccValue);
+  cc1[0].rgb = cc_fetchColor(ccConf.cc1Color.x, ccShade, ccValue);
+  cc1[1].rgb = cc_fetchColor(ccConf.cc1Color.y, ccShade, ccValue);
+  cc1[2].rgb = cc_fetchColor(ccConf.cc1Color.z, ccShade, ccValue);
+  cc1[3].rgb = cc_fetchColor(ccConf.cc1Color.w, ccShade, ccValue);
 
-  cc1[0].a = cc_fetchAlpha(cc1Alpha.x, ccShade, ccValue);
-  cc1[1].a = cc_fetchAlpha(cc1Alpha.y, ccShade, ccValue);
-  cc1[2].a = cc_fetchAlpha(cc1Alpha.z, ccShade, ccValue);
-  cc1[3].a = cc_fetchAlpha(cc1Alpha.w, ccShade, ccValue);
+  cc1[0].a = cc_fetchAlpha(ccConf.cc1Alpha.x, ccShade, ccValue);
+  cc1[1].a = cc_fetchAlpha(ccConf.cc1Alpha.y, ccShade, ccValue);
+  cc1[2].a = cc_fetchAlpha(ccConf.cc1Alpha.z, ccShade, ccValue);
+  cc1[3].a = cc_fetchAlpha(ccConf.cc1Alpha.w, ccShade, ccValue);
 
   ccValue = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
   ccValue = cc_clampValue(ccValue);

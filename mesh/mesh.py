@@ -17,7 +17,11 @@ class MeshBuffers:
     norm: np.ndarray
     indices: list[np.ndarray]
   # render data:
-    batch: list[gpu.types.GPUBatch]
+    batch: list[gpu.types.GPUBatch]    
+    cc_data: list[np.ndarray]
+    cc_conf: list[np.ndarray]
+    ubo_cc_data: list[gpu.types.GPUUniformBuf]
+    ubo_cc_conf: list[gpu.types.GPUUniformBuf]
     material: F64Material = None
     mesh_name: str = "" # multiple obj. can share the same mesh, store to allow deletion by name
 
@@ -98,4 +102,4 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   
   print(" - Mesh", (time.process_time() - tDes) * 1000)
 
-  return MeshBuffers(positions, colors, uvs, normals, index_array, None)
+  return MeshBuffers(positions, colors, uvs, normals, index_array, None, None, None, None, None)

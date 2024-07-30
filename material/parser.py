@@ -3,13 +3,13 @@ import bpy
 import numpy as np
 import gpu
 import time
-from .cc import CCSettings, get_cc_settings
+from .cc import get_cc_settings
 
 @dataclass
 class F64Material:
     color_prim: np.ndarray
     color_env: np.ndarray
-    cc: CCSettings = None
+    cc: np.ndarray = None
     cull: str = 'NONE'
     flags: int = 0
     tex0Buff: gpu.types.GPUTexture = None

@@ -11,3 +11,8 @@ vec3 linearToGamma(in vec3 color)
 }
 
 #define flagSelect(flag_mask, a, b) (mix(a, b, float( (flags & flag_mask) != 0 )))
+
+float noise(in vec2 uv)
+{
+  return fract(sin(dot(uv, vec2(12.9898, 78.233)))* 43758.5453);
+}
