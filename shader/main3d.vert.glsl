@@ -28,4 +28,8 @@ void main()
 
   gl_Position = matMVP * vec4(inPos, 1.0);
   posScreen = gl_Position.xy / gl_Position.w;
+  
+  // move the depth ever so slightly to avoid z-fighting with blenders own overlays
+  // e.g. transparent faces in face-edit mode, lines & points
+  gl_Position.z += 0.00001;
 }
