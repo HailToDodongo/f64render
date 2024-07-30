@@ -85,7 +85,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         };")
       
       # vertex -> fragment
-      vert_out.smooth("VEC4", "cc_shade")
+      vert_out.no_perspective("VEC4", "cc_shade")
       vert_out.flat("VEC4", "cc_shade_flat")
       vert_out.smooth("VEC4", "cc_env")
       vert_out.smooth("VEC4", "cc_prim")
@@ -93,7 +93,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.smooth("VEC2", "posScreen")
       vert_out.flat("INT", "flags")
 
-      
       shader_info.push_constant("VEC4", "ambientColor")
       shader_info.push_constant("MAT4", "matMVP")
       shader_info.push_constant("INT", "inFlags")
