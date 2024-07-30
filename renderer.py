@@ -1,6 +1,7 @@
 import bpy
 import gpu
 from gpu_extras.batch import batch_for_shader
+from .mesh.gpu_batch import multi_batch_for_shader
 from .material.parser import create_f64_material, f64_material_parse, node_material_parse
 import pathlib
 import time
@@ -182,22 +183,31 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
         meshID = obj.name + "#" + obj.data.name
 
+        # Mesh not cached: parse & convert mesh data, then prepare a GPU batch
         if meshID not in f64render_meshCache:
           # print("    -> Update object", meshID)
           mesh = obj.evaluated_get(depsgraph).to_mesh()
           renderObj = f64render_meshCache[meshID] = mesh_to_buffers(mesh)
           renderObj.mesh_name = obj.data.name
-          renderObj.batch = [None] * len(obj.material_slots)
+
+          mat_count = len(obj.material_slots)
+          renderObj.batch = multi_batch_for_shader(self.shader,
+            renderObj.vert,
+            renderObj.norm,
+            renderObj.color,
+            renderObj.uv,
+            renderObj.indices
+          )
+
+          renderObj.cc_data = [np.zeros(4*4, dtype=np.float32)] * mat_count
+          renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
           
-          renderObj.cc_data = [np.zeros(4*4, dtype=np.float32)] * len(obj.material_slots)
-          renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * len(obj.material_slots)
-          
-          renderObj.ubo_cc_data = [None] * len(obj.material_slots)
-          renderObj.ubo_cc_conf = [None] * len(obj.material_slots)
-          for i in range(len(obj.material_slots)):
+          renderObj.ubo_cc_data = [None] * mat_count
+          renderObj.ubo_cc_conf = [None] * mat_count
+          for i in range(mat_count):
             renderObj.ubo_cc_data[i] = gpu.types.GPUUniformBuf(renderObj.cc_data[i])
             renderObj.ubo_cc_conf[i] = gpu.types.GPUUniformBuf(renderObj.cc_conf[i])
-            
+
           obj.to_mesh_clear()
         
         if not obj_has_f3d_materials(obj):
@@ -237,15 +247,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           # renderObj.cc_conf[mat_idx][0:16] = f64mat.cc
           renderObj.ubo_cc_conf[mat_idx].update(f64mat.cc)
           self.shader.uniform_block("ccConf", renderObj.ubo_cc_conf[mat_idx])
-
-          # Draw object (@TODO: is batch_for_shader smart enough to not re-upload vertices?)
-          if renderObj.batch[mat_idx] is None:
-            renderObj.batch[mat_idx] = batch_for_shader(self.shader, 'TRIS', {
-              "inPos"   : renderObj.vert,
-              "inNormal": renderObj.norm,
-              "inColor" : renderObj.color,
-              "inUV"    : renderObj.uv
-            }, indices=renderObj.indices[mat_idx])
 
           renderObj.batch[mat_idx].draw(self.shader)
           mat_idx += 1
