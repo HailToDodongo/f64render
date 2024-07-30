@@ -67,19 +67,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
       shader_info = gpu.types.GPUShaderCreateInfo()
       
-      shader_info.typedef_source(
-        "struct UBO_CCData { \
-          vec4 lightColor; \
-          vec4 lightDir; \
-          vec4 prim; \
-          vec4 env; \
-        }; \
-        struct UBO_CCConf { \
-          ivec4 cc0Color; \
-          ivec4 cc0Alpha; \
-          ivec4 cc1Color; \
-          ivec4 cc1Alpha; \
-        };")
+      with open(shaderPath / "structs.glsl", "r", encoding="utf-8") as f:
+        shader_info.typedef_source(f.read())
       
       # vertex -> fragment
       vert_out = gpu.types.GPUStageInterfaceInfo("vert_interface")
