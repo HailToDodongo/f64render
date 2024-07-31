@@ -76,8 +76,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.flat("VEC4", "cc_shade_flat")
       vert_out.smooth("VEC4", "cc_env")
       vert_out.smooth("VEC4", "cc_prim")
-      vert_out.smooth("VEC2", "uv")
+      vert_out.smooth("VEC4", "uv")
       vert_out.smooth("VEC2", "posScreen")
+      vert_out.flat("VEC4", "tileSize")
       vert_out.flat("INT", "flags")
 
       shader_info.push_constant("VEC4", "ambientColor")
@@ -86,6 +87,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       
       shader_info.uniform_buf(0, "UBO_CCData", "ccData")
       shader_info.uniform_buf(1, "UBO_CCConf", "ccConf")
+      shader_info.uniform_buf(2, "UBO_TileConf", "tileConf")
       
       shader_info.vertex_in(0, "VEC3", "pos") # keep blenders name keep for better compat.
       shader_info.vertex_in(1, "VEC3", "inNormal")
@@ -190,9 +192,12 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           
           renderObj.ubo_cc_data = [None] * mat_count
           renderObj.ubo_cc_conf = [None] * mat_count
+          renderObj.ubo_tile_conf = [None] * mat_count
+
           for i in range(mat_count):
             renderObj.ubo_cc_data[i] = gpu.types.GPUUniformBuf(renderObj.cc_data[i])
             renderObj.ubo_cc_conf[i] = gpu.types.GPUUniformBuf(renderObj.cc_conf[i])
+            renderObj.ubo_tile_conf[i] = gpu.types.GPUUniformBuf(np.empty(4*4, dtype=np.float32))
 
           obj.to_mesh_clear()
         
@@ -221,7 +226,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_float("inFlags", f64mat.flags)
-                    
+
           renderObj.cc_data[mat_idx][0:4] = lightColor
           renderObj.cc_data[mat_idx][4:7] = lightDir
           renderObj.cc_data[mat_idx][8:12] = f64mat.color_prim
@@ -234,6 +239,11 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           renderObj.ubo_cc_conf[mat_idx].update(f64mat.cc)
           self.shader.uniform_block("ccConf", renderObj.ubo_cc_conf[mat_idx])
 
+          renderObj.ubo_tile_conf[mat_idx].update(f64mat.tile_conf)
+          self.shader.uniform_block("tileConf", renderObj.ubo_tile_conf[mat_idx])
+
+          # @TODO: is frustum-culling necessary, or done by blender?
+          
           indices_count = renderObj.index_offsets[mat_idx+1] - renderObj.index_offsets[mat_idx]
           renderObj.batch.draw_range(self.shader, elem_start=renderObj.index_offsets[mat_idx], elem_count=indices_count)
           mat_idx += 1

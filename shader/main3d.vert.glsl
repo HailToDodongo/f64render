@@ -18,15 +18,22 @@ void main()
   cc_env.rgb = linearToGamma(ccData.env.rgb);
   cc_prim.rgb = linearToGamma(ccData.prim.rgb);
 
-  uv = inUV;
+  // turn UVs ionto pixel-space, apply first tile settings
+  ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0));
+  uv = vec4(inUV, inUV) * texSize * tileConf.shift;
+  uv = uv - (tileConf.shift * 0.5) - tileConf.low;
+
+  tileSize = abs(tileConf.high) - abs(tileConf.low);
 
   flags = inFlags;
 
-  // @TODO: apply tile-settings
   // @TODO: uvgen (f3d + t3d)
   // forward CC (@TODO: do part of this here? e.g. prim/env/shade etc.)
 
-  gl_Position = matMVP * vec4(pos, 1.0);
+  vec3 posQuant = pos;
+  //posQuant = round(posQuant * 10) * 0.1;
+  
+  gl_Position = matMVP * vec4(posQuant, 1.0);
   posScreen = gl_Position.xy / gl_Position.w;
   
   // move the depth ever so slightly to avoid z-fighting with blenders own overlays

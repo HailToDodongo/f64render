@@ -3,6 +3,8 @@ import bpy
 import numpy as np
 import gpu
 import time
+
+from .tile import get_tile_conf
 from .cc import get_cc_settings
 
 @dataclass
@@ -10,6 +12,7 @@ class F64Material:
     color_prim: np.ndarray
     color_env: np.ndarray
     cc: np.ndarray = None
+    tile_conf: np.ndarray = None
     cull: str = 'NONE'
     flags: int = 0
     tex0Buff: gpu.types.GPUTexture = None
@@ -46,11 +49,12 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
   if f3d_mat.tex0.tex:
-      # f3d_mat.tex0.S.low
-      # f3d_mat.tex0.T.low
       f64mat.tex0Buff = gpu.texture.from_image(f3d_mat.tex0.tex)
 
   if f3d_mat.tex1.tex:
     f64mat.tex1Buff = gpu.texture.from_image(f3d_mat.tex1.tex)
+
+  if f3d_mat.tex0.tex or f3d_mat.tex1.tex:
+    f64mat.tile_conf = get_tile_conf(f3d_mat)
 
   return f64mat
