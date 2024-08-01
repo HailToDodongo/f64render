@@ -2,8 +2,8 @@
 
 struct UBO_CCData 
 {
-  vec4 lightColor;
-  vec4 lightDir;
+  vec4 lightColor[2];
+  vec4 lightDir[2];
   vec4 prim;
   vec4 env;
 };

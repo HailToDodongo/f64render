@@ -3,10 +3,13 @@ void main()
 {
   // Directional light
   vec3 norm = normalize(inNormal);
-  float lightStren = max(dot(norm, ccData.lightDir.xyz), 0.0);
-  vec4 lightTotal = ccData.lightColor * lightStren;
 
-  lightTotal += vec4(ambientColor.rgb, 0.0);
+  vec4 lightTotal = vec4(ambientColor.rgb, 0.0);
+  for(int i=0; i<2; ++i) {
+    float lightStren = max(dot(norm, ccData.lightDir[i].xyz), 0.0);
+    lightTotal += ccData.lightColor[i] * lightStren*lightStren;
+  }
+
   lightTotal = clamp(lightTotal, 0.0, 1.0);  
   
   // Ambient light

@@ -154,8 +154,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     # global params
     f64_render = depsgraph.scene.fast64.renderSettings
-    lightDir = f64_render.light0Direction
-    lightColor = f64_render.light0Color
+    lightDir0 = f64_render.light0Direction
+    lightDir1 = f64_render.light1Direction
+    lightColor0 = f64_render.light0Color
+    lightColor1 = f64_render.light1Color
     ambientColor = f64_render.ambientColor
 
     self.shader.uniform_float("ambientColor", ambientColor)
@@ -185,7 +187,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             renderObj.indices
           )
 
-          renderObj.cc_data = [np.zeros(4*4, dtype=np.float32)] * mat_count
+          renderObj.cc_data = [np.zeros(4*6, dtype=np.float32)] * mat_count
           renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
           
           renderObj.ubo_cc_data = [None] * mat_count
@@ -225,10 +227,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_int("inFlags", f64mat.flags)
 
-          renderObj.cc_data[mat_idx][0:4] = lightColor
-          renderObj.cc_data[mat_idx][4:7] = lightDir
-          renderObj.cc_data[mat_idx][8:12] = f64mat.color_prim
-          renderObj.cc_data[mat_idx][12:16] = f64mat.color_env
+          renderObj.cc_data[mat_idx][0:4] = lightColor0
+          renderObj.cc_data[mat_idx][4:8] = lightColor1
+          renderObj.cc_data[mat_idx][8:11] = lightDir0
+          renderObj.cc_data[mat_idx][12:15] = lightDir1
+          
+          renderObj.cc_data[mat_idx][16:20] = f64mat.color_prim
+          renderObj.cc_data[mat_idx][20:24] = f64mat.color_env
           
           renderObj.ubo_cc_data[mat_idx].update(renderObj.cc_data[mat_idx])                        
           self.shader.uniform_block("ccData", renderObj.ubo_cc_data[mat_idx])
