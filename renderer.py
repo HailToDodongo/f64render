@@ -78,8 +78,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.flat("VEC4", "tileSize")
       vert_out.flat("INT", "flags")
 
-      shader_info.push_constant("VEC4", "ambientColor")
       shader_info.push_constant("MAT4", "matMVP")
+      shader_info.push_constant("MAT3", "matNorm")
       shader_info.push_constant("INT", "inFlags")
       
       shader_info.uniform_buf(0, "UBO_CCData", "ccData")
@@ -160,8 +160,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     lightColor1 = f64_render.light1Color
     ambientColor = f64_render.ambientColor
 
-    self.shader.uniform_float("ambientColor", ambientColor)
-
     # @TODO: according to the docs you can re-use 'batch.draw' later in the code (?)
     #        in any case, only re-assign material settings if they changed
 
@@ -187,7 +185,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             renderObj.indices
           )
 
-          renderObj.cc_data = [np.zeros(4*6, dtype=np.float32)] * mat_count
+          renderObj.cc_data = [np.zeros(4*7, dtype=np.float32)] * mat_count
           renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
           
           renderObj.ubo_cc_data = [None] * mat_count
@@ -211,7 +209,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         modelview_matrix = obj.matrix_world
         projection_matrix = context.region_data.perspective_matrix
         mvp_matrix = projection_matrix @ modelview_matrix
+        normal_matrix = (obj.matrix_world @ context.region_data.view_matrix).to_3x3().inverted().transposed()
         self.shader.uniform_float("matMVP", mvp_matrix)
+        self.shader.uniform_float("matNorm", normal_matrix)
 
         mat_idx = 0        
         for slot in obj.material_slots:
@@ -231,9 +231,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           renderObj.cc_data[mat_idx][4:8] = lightColor1
           renderObj.cc_data[mat_idx][8:11] = lightDir0
           renderObj.cc_data[mat_idx][12:15] = lightDir1
-          
+
           renderObj.cc_data[mat_idx][16:20] = f64mat.color_prim
           renderObj.cc_data[mat_idx][20:24] = f64mat.color_env
+          renderObj.cc_data[mat_idx][24:28] = ambientColor
           
           renderObj.ubo_cc_data[mat_idx].update(renderObj.cc_data[mat_idx])                        
           self.shader.uniform_block("ccData", renderObj.ubo_cc_data[mat_idx])

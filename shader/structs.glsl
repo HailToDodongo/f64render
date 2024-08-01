@@ -6,6 +6,7 @@ struct UBO_CCData
   vec4 lightDir[2];
   vec4 prim;
   vec4 env;
+  vec4 ambientColor;
 };
 
 struct UBO_TileConf

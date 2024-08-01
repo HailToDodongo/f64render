@@ -9,6 +9,7 @@ from .cc import get_cc_settings
 
 DRAW_FLAG_FLATSHADE  = (1 << 0)
 DRAW_FLAG_FILTER_TRI = (1 << 1)
+DRAW_FLAG_UVGEN_SPHERE = (1 << 2)
 
 @dataclass
 class F64Material:
@@ -50,6 +51,7 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
 
   f64mat.flags = 0 if f3d_mat.rdp_settings.g_shade_smooth else DRAW_FLAG_FLATSHADE
   f64mat.flags |= DRAW_FLAG_FILTER_TRI if (f3d_mat.rdp_settings.g_mdsft_text_filt == 'G_TF_BILERP') else 0
+  f64mat.flags |= DRAW_FLAG_UVGEN_SPHERE if f3d_mat.rdp_settings.g_tex_gen else 0
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
   if f3d_mat.tex0.tex:

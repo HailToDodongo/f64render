@@ -2,15 +2,15 @@
 void main() 
 {
   // Directional light
-  vec3 norm = normalize(inNormal);
+  vec3 norm = normalize(matNorm * inNormal);
 
-  vec4 lightTotal = vec4(ambientColor.rgb, 0.0);
+  vec4 lightTotal = vec4(ccData.ambientColor.rgb, 0.0);
   for(int i=0; i<2; ++i) {
     float lightStren = max(dot(norm, ccData.lightDir[i].xyz), 0.0);
     lightTotal += ccData.lightColor[i] * lightStren*lightStren;
   }
 
-  lightTotal = clamp(lightTotal, 0.0, 1.0);  
+  lightTotal = clamp(lightTotal, 0.0, 1.0);
   
   // Ambient light
   cc_shade.rgb = linearToGamma(lightTotal.rgb);
@@ -21,9 +21,12 @@ void main()
   cc_env.rgb = linearToGamma(ccData.env.rgb);
   cc_prim.rgb = linearToGamma(ccData.prim.rgb);
 
+  flags = inFlags;
+  vec2 uvGen = flagSelect(DRAW_FLAG_UVGEN_SPHERE, inUV, norm.xy * 0.5 + 0.5);
+
   // turn UVs ionto pixel-space, apply first tile settings
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0));
-  uv = vec4(inUV, inUV) * texSize;
+  uv = uvGen.xyxy * texSize;
   // apply tileConf.shift from top left of texture:
   uv.yw = texSize.yw - uv.yw - 1;
   uv *= tileConf.shift;
@@ -32,8 +35,6 @@ void main()
   uv = uv - (tileConf.shift * 0.5) - tileConf.low;
 
   tileSize = abs(tileConf.high) - abs(tileConf.low);
-
-  flags = inFlags;
 
   // @TODO: uvgen (f3d + t3d)
   // forward CC (@TODO: do part of this here? e.g. prim/env/shade etc.)
