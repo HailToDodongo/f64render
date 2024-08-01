@@ -45,6 +45,9 @@ def get_cc_settings(f3d_mat) -> np.ndarray:
   c0 = f3d_mat.combiner1
   c1 = f3d_mat.combiner2
 
+  if f3d_mat.rdp_settings.g_mdsft_cycletype == 'G_CYC_1CYCLE':
+    c1 = c0
+
   return np.array([
     CC_C[c0.A      ], CC_C[c0.B      ], CC_C[c0.C      ], CC_C[c0.D      ],
     CC_A[c0.A_alpha], CC_A[c0.B_alpha], CC_A[c0.C_alpha], CC_A[c0.D_alpha],
