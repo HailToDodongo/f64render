@@ -153,9 +153,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     gpu.state.depth_mask_set(True)
 
     # global params
-    lightDir = depsgraph.scene.fast64.renderSettings.lightDirection
-    lightColor = depsgraph.scene.fast64.renderSettings.lightColor
-    ambientColor = depsgraph.scene.fast64.renderSettings.ambientColor
+    f64_render = depsgraph.scene.fast64.renderSettings
+    lightDir = f64_render.light0Direction
+    lightColor = f64_render.light0Color
+    ambientColor = f64_render.ambientColor
 
     self.shader.uniform_float("ambientColor", ambientColor)
 
@@ -236,8 +237,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           renderObj.ubo_cc_conf[mat_idx].update(f64mat.cc)
           self.shader.uniform_block("ccConf", renderObj.ubo_cc_conf[mat_idx])
 
-          renderObj.ubo_tile_conf[mat_idx].update(f64mat.tile_conf)
-          self.shader.uniform_block("tileConf", renderObj.ubo_tile_conf[mat_idx])
+          if f64mat.tile_conf is not None:
+            renderObj.ubo_tile_conf[mat_idx].update(f64mat.tile_conf)
+            self.shader.uniform_block("tileConf", renderObj.ubo_tile_conf[mat_idx])
 
           # @TODO: is frustum-culling necessary, or done by blender?
           
