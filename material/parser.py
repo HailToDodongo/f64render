@@ -7,6 +7,9 @@ import time
 from .tile import get_tile_conf
 from .cc import get_cc_settings
 
+DRAW_FLAG_FLATSHADE  = (1 << 0)
+DRAW_FLAG_FILTER_TRI = (1 << 1)
+
 @dataclass
 class F64Material:
     color_prim: np.ndarray
@@ -45,7 +48,8 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   if f3d_mat.rdp_settings.g_cull_back: f64mat.cull = "BACK"
   if f3d_mat.rdp_settings.g_cull_front: f64mat.cull = "FRONT"
 
-  f64mat.flags = int(not f3d_mat.rdp_settings.g_shade_smooth)
+  f64mat.flags = 0 if f3d_mat.rdp_settings.g_shade_smooth else DRAW_FLAG_FLATSHADE
+  f64mat.flags |= DRAW_FLAG_FILTER_TRI if (f3d_mat.rdp_settings.g_mdsft_text_filt == 'G_TF_BILERP') else 0
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
   if f3d_mat.tex0.tex:

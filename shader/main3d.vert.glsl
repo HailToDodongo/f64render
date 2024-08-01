@@ -20,7 +20,12 @@ void main()
 
   // turn UVs ionto pixel-space, apply first tile settings
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0));
-  uv = vec4(inUV, inUV) * texSize * tileConf.shift;
+  uv = vec4(inUV, inUV) * texSize;
+  // apply tileConf.shift from top left of texture:
+  uv.yw = texSize.yw - uv.yw - 1;
+  uv *= tileConf.shift;
+  uv.yw = texSize.yw - uv.yw - 1;
+
   uv = uv - (tileConf.shift * 0.5) - tileConf.low;
 
   tileSize = abs(tileConf.high) - abs(tileConf.low);

@@ -59,9 +59,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       with open(shaderPath / "main3d.vert.glsl", "r", encoding="utf-8") as f:
         shaderVert += f.read()
 
-      with open(shaderPath / "3point.glsl", "r", encoding="utf-8") as f:
-        shaderFrag += f.read()
-
       with open(shaderPath / "main3d.frag.glsl", "r", encoding="utf-8") as f:
         shaderFrag += f.read()
 
@@ -225,7 +222,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
-          self.shader.uniform_float("inFlags", f64mat.flags)
+          self.shader.uniform_int("inFlags", f64mat.flags)
 
           renderObj.cc_data[mat_idx][0:4] = lightColor
           renderObj.cc_data[mat_idx][4:7] = lightDir

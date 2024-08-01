@@ -27,21 +27,25 @@ ivec4 wrappedMirror(ivec4 texSize, ivec4 uv)
 {
   vec4 mask = abs(tileConf.mask);
 
+  // fetch settings
   vec4 isClamp      = step(tileConf.mask, vec4(1.0));
   vec4 isMirror     = step(tileConf.high, vec4(0.0));
   vec4 isForceClamp = step(mask, vec4(1.0)); // mask == 0 forces clamping
-
   mask = mix(mask, vec4(256), isForceClamp); // if mask == 0, we also have to ignore it
 
-  uv.yw = texSize.yw - uv.yw;
+  // @TODO: do this in vertex shader once initially
+  uv.yw = texSize.yw - uv.yw; // invert Y to have 0,0 in the top-left corner
   
-  vec4 uvMirror = mirrorUV(tileSize + vec4(0.5), vec4(uv));
-  uvMirror = mix( vec4(uv),  uvMirror, isMirror);   
+  // first apply clamping if enabled (clamp S/T, low S/T -> high S/T)
+  vec4 uvClamp = clamp(uv, vec4(0.0), tileSize);
+  uv = ivec4(mix(uv, uvClamp, isClamp));
 
-  vec4 uvMod = ivec4(mod(uvMirror, mask));
-  vec4 uvClamp = mod(clamp(uv, vec4(0.0), tileSize), mask);
-  uv = ivec4(mix(uvMod, uvClamp, isClamp));
-
-  uv.yw = texSize.yw - uv.yw;
+  // then mirror the result if needed (mirror S/T)
+  vec4 uvMirror = mirrorUV(mask - vec4(0.5), vec4(uv));
+  uv = ivec4(mix(vec4(uv),  uvMirror, isMirror));
+  
+  // clamp again (mask S/T), this is also done to avoid OOB texture access
+  uv = ivec4(mod(uv, min(texSize+1, mask)));
+  uv.yw = texSize.yw - uv.yw; // invert Y back
   return uv;
 }

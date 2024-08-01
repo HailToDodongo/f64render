@@ -35,6 +35,7 @@
 
 // Draw flags (custom for the shader)
 #define DRAW_FLAG_FLATSHADE (1 << 0)
+#define DRAW_FLAG_FILTER_TRI (1 << 1)
 
 struct TileConf {
   vec2 mask;

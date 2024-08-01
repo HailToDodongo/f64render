@@ -1,4 +1,42 @@
 
+void fetchTex01Filtered(in ivec4 texSize, out vec4 texData0, out vec4 texData1)
+{
+  // Original 3-point code taken from: https://www.shadertoy.com/view/Ws2fWV (By: cyrb)
+  ivec4 uv0 = ivec4(floor(uv));
+  vec4 ratio = uv - vec4(uv0);
+
+  ivec2 lower_flag = ivec2(step(0.0, ratio.xz - ratio.yw));
+  ivec4 corner = ivec4(
+    lower_flag.x, 1 - lower_flag.x,
+    lower_flag.y, 1 - lower_flag.y
+  );
+
+  ivec4 uv1 = uv0 + corner;
+  ivec4 uv2 = uv0 + 1;
+
+  uv0 = wrappedMirror(texSize, uv0);
+  uv1 = wrappedMirror(texSize, uv1);
+  uv2 = wrappedMirror(texSize, uv2);
+
+  vec4 v0 = vec4(0 - corner);
+  vec4 v1 = vec4(1 - corner);
+  vec4 v2 = ratio - vec4(corner);
+
+  vec2 den = v0.xw * v1.yz - v1.xw * v0.yz;
+
+  vec2 lambda1 = abs((v2.xz * v1.yw - v1.xz * v2.yw) / den);
+  vec2 lambda2 = abs((v0.xz * v2.yw - v2.xz * v0.yw) / den);
+  vec2 lambda0 = 1.0 - lambda1 - lambda2;
+
+  texData0 = texelFetch(tex0, uv1.xy, 0) * lambda0.x
+            + texelFetch(tex0, uv0.xy, 0) * lambda1.x
+            + texelFetch(tex0, uv2.xy, 0) * lambda2.x;
+  
+  texData1 = texelFetch(tex1, uv1.zw, 0) * lambda0.y
+            + texelFetch(tex1, uv0.zw, 0) * lambda1.y
+            + texelFetch(tex1, uv2.zw, 0) * lambda2.y;
+}
+
 vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in vec4 texData1)
 {
        if(val == CC_C_COMB       ) return comb.rgb;
@@ -64,42 +102,17 @@ void main()
   // then sample both textures even if none are used. This is done to vectorize both
   // the UV and clamp/mirror calculations, as well as minimize the number of texture fetches
   vec4 texData0, texData1;
+  ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0)) - 1;
+
+  if((flags & DRAW_FLAG_FILTER_TRI) != 0)
   {
-    // Original 3-point code taken from: https://www.shadertoy.com/view/Ws2fWV (By: cyrb)
-    ivec4 uv0 = ivec4(floor(uv));
-    vec4 ratio = uv - vec4(uv0);
-
-    ivec2 lower_flag = ivec2(step(0.0, ratio.xz - ratio.yw));
-    ivec4 corner = ivec4(
-      lower_flag.x, 1 - lower_flag.x,
-      lower_flag.y, 1 - lower_flag.y
-    );
-
-    ivec4 uv1 = uv0 + corner;
-    ivec4 uv2 = uv0 + 1;
-
-    ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0)) - 1;
+    fetchTex01Filtered(texSize, texData0, texData1);
+  } else {
+    ivec4 uv0 = ivec4(floor(uv + 0.5));
     uv0 = wrappedMirror(texSize, uv0);
-    uv1 = wrappedMirror(texSize, uv1);
-    uv2 = wrappedMirror(texSize, uv2);
 
-    vec4 v0 = vec4(0 - corner);
-    vec4 v1 = vec4(1 - corner);
-    vec4 v2 = ratio - vec4(corner);
-
-    vec2 den = v0.xw * v1.yz - v1.xw * v0.yz;
-
-    vec2 lambda1 = abs((v2.xz * v1.yw - v1.xz * v2.yw) / den);
-    vec2 lambda2 = abs((v0.xz * v2.yw - v2.xz * v0.yw) / den);
-    vec2 lambda0 = 1.0 - lambda1 - lambda2;
-
-    texData0 = texelFetch(tex0, uv1.xy, 0) * lambda0.x
-             + texelFetch(tex0, uv0.xy, 0) * lambda1.x
-             + texelFetch(tex0, uv2.xy, 0) * lambda2.x;
-    
-    texData1 = texelFetch(tex1, uv1.zw, 0) * lambda0.y
-             + texelFetch(tex1, uv0.zw, 0) * lambda1.y
-             + texelFetch(tex1, uv2.zw, 0) * lambda2.y;
+    texData0 = texelFetch(tex0, uv0.xy, 0);
+    texData1 = texelFetch(tex1, uv0.zw, 0);
   }
 
   cc0[0].rgb = cc_fetchColor(ccConf.cc0Color.x, ccShade, ccValue, texData0, texData1);
