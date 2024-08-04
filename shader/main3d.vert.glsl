@@ -20,13 +20,16 @@ void main()
 
   cc_env.rgb = linearToGamma(ccData.env.rgb);
   cc_prim.rgb = linearToGamma(ccData.prim.rgb);
+  cc_env.a = ccData.env.a;
+  cc_prim.a = ccData.prim.a;
 
   flags = inFlags;
   vec2 uvGen = flagSelect(DRAW_FLAG_UVGEN_SPHERE, inUV, norm.xy * 0.5 + 0.5);
 
   // turn UVs ionto pixel-space, apply first tile settings
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0));
-  uv = uvGen.xyxy * texSize;
+  // we simulate UVs in pixel-space, since there is only one UV set, we scale by the first texture size
+  uv = uvGen.xyxy * texSize.xyxy;
   // apply tileConf.shift from top left of texture:
   uv.yw = texSize.yw - uv.yw - 1;
   uv *= tileConf.shift;
