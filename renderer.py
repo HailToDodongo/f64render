@@ -215,6 +215,11 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
         mat_idx = 0        
         for slot in obj.material_slots:
+          indices_count = renderObj.index_offsets[mat_idx+1] - renderObj.index_offsets[mat_idx]
+          if indices_count == 0: # ignore unused materials
+            mat_idx += 1
+            continue
+          
           f3d_mat = slot.material.f3d_mat                    
           renderObj.material = f64_material_parse(f3d_mat, renderObj.material)
 
@@ -249,9 +254,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
           # @TODO: is frustum-culling necessary, or done by blender?
           
-          indices_count = renderObj.index_offsets[mat_idx+1] - renderObj.index_offsets[mat_idx]
           renderObj.batch.draw_range(self.shader, elem_start=renderObj.index_offsets[mat_idx], elem_count=indices_count)
-          mat_idx += 1
+          mat_idx += 1  
 
     print("Time F3D (ms)", (time.process_time() - t) * 1000)
     t = time.process_time()

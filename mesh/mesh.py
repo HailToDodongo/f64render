@@ -97,12 +97,13 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
 
   # create index buffers for the mesh by material, the data behind it is unindexed
   # this is done to do a cheap split by material
+  mat_count = len(mesh.materials)
   mesh.loop_triangles.foreach_get('material_index', use_flat) # materials, e.g.: [0, 1, 0, 1, 2, 1, ...]
   index_array = np.arange(num_corners, dtype=np.int32) # -> [0, 1, 2, 3, 4, 5, ...]
   index_array = index_array.reshape((-1, 3))           # -> [[0, 1, 2], [3, 4, 5], ...]
   
   index_array = index_array[np.argsort(use_flat)] # sort index_array by value in use_flat (aka material-index)
-  index_offsets = np.bincount(use_flat)           # now get counts of each material, e.g.: [1, 2] where index is material-index
+  index_offsets = np.bincount(use_flat, minlength=mat_count)    # now get counts of each material, e.g.: [1, 2] where index is material-index
   index_offsets = np.insert(index_offsets, 0, 0)  # prepend 0 to turn counts into offsets
   index_offsets = np.cumsum(index_offsets) * 3    # converted into accumulated offset / mul. by 3 for triangles
 
