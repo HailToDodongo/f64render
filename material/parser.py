@@ -18,7 +18,9 @@ class F64Material:
     cc: np.ndarray = None
     tile_conf: np.ndarray = None
     cull: str = 'NONE'
+    blend: str = 'NONE'
     flags: int = 0
+    alphaClip: float = -1.0
     tex0Buff: gpu.types.GPUTexture = None
     tex1Buff: gpu.types.GPUTexture = None
 
@@ -39,6 +41,44 @@ def node_material_parse(mat: bpy.types.Material) -> F64Material:
 
   return F64Material(color, color)
 
+# @TODO: re-use fast64 logic
+def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
+  f64mat.alphaClip = -1
+  f64mat.blend = "NONE"
+  is_one_cycle = f3d_mat.rdp_settings.g_mdsft_cycletype == "G_CYC_1CYCLE"
+
+  if f3d_mat.rdp_settings.set_rendermode:
+    if f3d_mat.rdp_settings.rendermode_advanced_enabled:
+        if f3d_mat.rdp_settings.cvg_x_alpha:
+            f64mat.alphaClip = 0.75
+        elif (
+            is_one_cycle
+            and f3d_mat.rdp_settings.force_bl
+            and f3d_mat.rdp_settings.blend_p1 == "G_BL_CLR_IN"
+            and f3d_mat.rdp_settings.blend_a1 == "G_BL_A_IN"
+            and f3d_mat.rdp_settings.blend_m1 == "G_BL_CLR_MEM"
+            and f3d_mat.rdp_settings.blend_b1 == "G_BL_1MA"
+        ):
+            f64mat.blend = "ALPHA"
+        elif (
+            not is_one_cycle
+            and f3d_mat.rdp_settings.force_bl
+            and f3d_mat.rdp_settings.blend_p2 == "G_BL_CLR_IN"
+            and f3d_mat.rdp_settings.blend_a2 == "G_BL_A_IN"
+            and f3d_mat.rdp_settings.blend_m2 == "G_BL_CLR_MEM"
+            and f3d_mat.rdp_settings.blend_b2 == "G_BL_1MA"
+        ):
+            f64mat.blend = "ALPHA"
+    else:
+        rendermode = f3d_mat.rdp_settings.rendermode_preset_cycle_1
+        if not is_one_cycle:
+          rendermode = f3d_mat.rdp_settings.rendermode_preset_cycle_2
+
+        if rendermode == "G_RM_AA_ZB_TEX_EDGE2":
+          f64mat.alphaClip = 0.75
+        elif "XLU" in rendermode:
+          f64mat.blend = "ALPHA"
+
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   f64mat = F64Material(
      color_prim = f3d_mat.prim_color,
@@ -48,6 +88,8 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
 
   if f3d_mat.rdp_settings.g_cull_back: f64mat.cull = "BACK"
   if f3d_mat.rdp_settings.g_cull_front: f64mat.cull = "FRONT"
+  
+  f64_parse_blend_mode(f3d_mat, f64mat)
 
   f64mat.flags = 0 if f3d_mat.rdp_settings.g_shade_smooth else DRAW_FLAG_FLATSHADE
   f64mat.flags |= DRAW_FLAG_FILTER_TRI if (f3d_mat.rdp_settings.g_mdsft_text_filt == 'G_TF_BILERP') else 0

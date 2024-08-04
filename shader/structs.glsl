@@ -7,6 +7,8 @@ struct UBO_CCData
   vec4 prim;
   vec4 env;
   vec4 ambientColor;
+  vec3 _padding;
+  float alphaClip;
 };
 
 struct UBO_TileConf

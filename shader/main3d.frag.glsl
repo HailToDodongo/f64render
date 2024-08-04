@@ -141,6 +141,6 @@ void main()
   ccValue = cc_clampValue(ccValue);
 
   ccValue.rgb = gammaToLinear(ccValue.rgb);
-  
+  if(ccValue.a < ccData.alphaClip)discard;
   FragColor = ccValue;
 }
