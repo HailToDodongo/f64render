@@ -10,6 +10,8 @@ from .cc import get_cc_settings
 DRAW_FLAG_FLATSHADE  = (1 << 0)
 DRAW_FLAG_FILTER_TRI = (1 << 1)
 DRAW_FLAG_UVGEN_SPHERE = (1 << 2)
+DRAW_FLAG_TEX0_MONO = (1 << 3)
+DRAW_FLAG_TEX1_MONO = (1 << 4)
 
 @dataclass
 class F64Material:
@@ -97,10 +99,14 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
   if f3d_mat.tex0.tex:
-      f64mat.tex0Buff = gpu.texture.from_image(f3d_mat.tex0.tex)
+    f64mat.tex0Buff = gpu.texture.from_image(f3d_mat.tex0.tex)
+    if f3d_mat.tex0.tex_format == 'I4' or f3d_mat.tex0.tex_format == 'I8':
+      f64mat.flags |= DRAW_FLAG_TEX0_MONO
 
   if f3d_mat.tex1.tex:
     f64mat.tex1Buff = gpu.texture.from_image(f3d_mat.tex1.tex)
+    if f3d_mat.tex1.tex_format == 'I4' or f3d_mat.tex1.tex_format == 'I8':
+      f64mat.flags |= DRAW_FLAG_TEX1_MONO
 
   if f3d_mat.tex0.tex or f3d_mat.tex1.tex:
     f64mat.tile_conf = get_tile_conf(f3d_mat)

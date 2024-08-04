@@ -115,6 +115,12 @@ void main()
     texData1 = texelFetch(tex1, uv0.zw, 0);
   }
 
+  // handle I4/I8
+  texData0.rgba = flagSelect(DRAW_FLAG_TEX0_MONO, texData0.rgba, texData0.rrrr);
+  texData1.rgba = flagSelect(DRAW_FLAG_TEX1_MONO, texData1.rgba, texData1.rrrr);
+
+  // @TODO: emulate other formats, e.g. quantization?
+
   cc0[0].rgb = cc_fetchColor(ccConf.cc0Color.x, ccShade, ccValue, texData0, texData1);
   cc0[1].rgb = cc_fetchColor(ccConf.cc0Color.y, ccShade, ccValue, texData0, texData1);
   cc0[2].rgb = cc_fetchColor(ccConf.cc0Color.z, ccShade, ccValue, texData0, texData1);
