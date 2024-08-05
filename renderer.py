@@ -8,6 +8,7 @@ import numpy as np
 
 from .mesh.mesh import MeshBuffers, mesh_to_buffers
 
+f64render_materials_dirty = True
 f64render_instance = None
 f64render_meshCache: dict[MeshBuffers] = {}
 
@@ -104,13 +105,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
   def mesh_change_listener(scene, depsgraph):
     global f64render_meshCache
+    global f64render_materials_dirty
     # print("################ MESH CHANGE LISTENER ################")  
 
     if depsgraph.id_type_updated('MATERIAL'):
       for update in depsgraph.updates:
-        # print("MATERIAL update", update.id.name)
-        # TODO: update materials here and cache
-        pass
+        # this seems to trigger for all materials if only one changed (@TODO: check if i can get proper updates)
+        f64render_materials_dirty = True
       return
 
     if not depsgraph.id_type_updated('MESH'):
@@ -137,6 +138,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
   def draw_scene(self, context, depsgraph):
     global f64render_meshCache
+    global f64render_materials_dirty
     
     # TODO: fixme, after reloading this script during dev, something calls this function
     #       with an invalid reference (viewport?)
@@ -198,6 +200,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           renderObj.ubo_cc_data = [None] * mat_count
           renderObj.ubo_cc_conf = [None] * mat_count
           renderObj.ubo_tile_conf = [None] * mat_count
+          renderObj.materials = [None] * mat_count
 
           for i in range(mat_count):
             renderObj.ubo_cc_data[i] = gpu.types.GPUUniformBuf(renderObj.cc_data[i])
@@ -236,9 +239,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           continue
         
         f3d_mat = slot.material.f3d_mat                    
-        renderObj.material = f64_material_parse(f3d_mat, renderObj.material)
+        if f64render_materials_dirty or renderObj.materials[mat_idx] is None:
+          renderObj.materials[mat_idx] = f64_material_parse(f3d_mat, renderObj.materials[mat_idx])
 
-        f64mat = renderObj.material
+        f64mat = renderObj.materials[mat_idx]
         gpu.state.face_culling_set(f64mat.cull)
         gpu.state.blend_set(f64mat.blend)
         
@@ -275,6 +279,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         renderObj.batch.draw_range(self.shader, elem_start=renderObj.index_offsets[mat_idx], elem_count=indices_count)
         mat_idx += 1  
 
+    f64render_materials_dirty = False
     print("Time F3D (ms)", (time.process_time() - t) * 1000)
     
     if len(fallback_objs) > 0:
@@ -286,13 +291,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         renderObj = f64render_meshCache[meshID]
 
         # get material (we don't expect any changes here, so caching is fine)
-        if renderObj.material is None:
-          renderObj.material = create_f64_material()
+        if renderObj.materials is None or len(renderObj.materials) == 0:
+          renderObj.materials = [create_f64_material()]
           if obj.material_slots:
-            mat = obj.material_slots[0].material
-            renderObj.material = node_material_parse(mat)
+            mat = obj.material_slots[0].materials[0]
+            renderObj.materials[0] = node_material_parse(mat)
 
-        self.shader_fallback.uniform_float("color", renderObj.material.color_prim)
+        self.shader_fallback.uniform_float("color", renderObj.materials[0].color_prim)
 
         modelview_matrix = obj.matrix_world
         projection_matrix = context.region_data.perspective_matrix

@@ -24,7 +24,7 @@ class MeshBuffers:
     ubo_cc_data: list[gpu.types.GPUUniformBuf]
     ubo_cc_conf: list[gpu.types.GPUUniformBuf]
     ubo_tile_conf: list[gpu.types.GPUUniformBuf]
-    material: F64Material = None
+    materials: list[F64Material] = None
     mesh_name: str = "" # multiple obj. can share the same mesh, store to allow deletion by name
 
 # Converts a blender mesh into buffers to be used by the GPU renderer
