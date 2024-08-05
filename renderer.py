@@ -170,6 +170,12 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
         meshID = obj.name + "#" + obj.data.name
 
+        # check for objects that transitioned from non-f3d to f3d materials
+        if meshID in f64render_meshCache:
+          renderObj = f64render_meshCache[meshID]
+          if len(renderObj.cc_conf) == 0 and obj_has_f3d_materials(obj):
+            del f64render_meshCache[meshID]
+            
         # Mesh not cached: parse & convert mesh data, then prepare a GPU batch
         if meshID not in f64render_meshCache:
           # print("    -> Update object", meshID)
@@ -188,7 +194,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
           renderObj.cc_data = [np.zeros(4*8, dtype=np.float32)] * mat_count
           renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
-          
+
           renderObj.ubo_cc_data = [None] * mat_count
           renderObj.ubo_cc_conf = [None] * mat_count
           renderObj.ubo_tile_conf = [None] * mat_count
