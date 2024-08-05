@@ -48,6 +48,8 @@ void main()
   gl_Position = matMVP * vec4(posQuant, 1.0);
   posScreen = gl_Position.xy / gl_Position.w;
   
+  // quantize depth to what the RDP has (16bit)
+  gl_Position.z = ceil(gl_Position.z * 0x7FFF) / 0x7FFF;
   // move the depth ever so slightly to avoid z-fighting with blenders own overlays
   // e.g. transparent faces in face-edit mode, lines & points
   gl_Position.z += 0.00001;
