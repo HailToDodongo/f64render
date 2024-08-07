@@ -52,5 +52,6 @@ void main()
   gl_Position.z = ceil(gl_Position.z * 0x7FFF) / 0x7FFF;
   // move the depth ever so slightly to avoid z-fighting with blenders own overlays
   // e.g. transparent faces in face-edit mode, lines & points
-  gl_Position.z += 0.00001;
+  float depthOffset = flagSelect(DRAW_FLAG_DECAL, 0.00006, 0.0); // don't offset decals to make manual depth checks work later
+  gl_Position.z += depthOffset;
 }

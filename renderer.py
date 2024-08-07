@@ -34,12 +34,19 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.shader = None
     self.shader_fallback = None
     self.draw_handler = None
+        
+    self.depth_texture: gpu.types.GPUTexture = None
+    self.update_render_size(128, 128)
     bpy.app.handlers.depsgraph_update_post.append(Fast64RenderEngine.mesh_change_listener)
     
   def __del__(self):
     if Fast64RenderEngine.mesh_change_listener in bpy.app.handlers.depsgraph_update_post:
       bpy.app.handlers.depsgraph_update_post.remove(Fast64RenderEngine.mesh_change_listener)
     pass
+  
+  def update_render_size(self, size_x, size_y):
+    if not self.depth_texture or size_x != self.depth_texture.width or size_y != self.depth_texture.height:
+      self.depth_texture = gpu.types.GPUTexture((size_x, size_y), format='R32I')
 
   def init_shader(self):
     if not self.shader:
@@ -75,7 +82,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.smooth("VEC4", "cc_env")
       vert_out.smooth("VEC4", "cc_prim")
       vert_out.smooth("VEC4", "uv")
-      vert_out.smooth("VEC2", "posScreen")
+      vert_out.no_perspective("VEC2", "posScreen")
       vert_out.flat("VEC4", "tileSize")
       vert_out.flat("INT", "flags")
 
@@ -95,6 +102,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       
       shader_info.sampler(0, "FLOAT_2D", "tex0")
       shader_info.sampler(1, "FLOAT_2D", "tex1")
+      shader_info.image(3, 'R32I', "INT_2D_ATOMIC", "depth_texture", qualifiers={"READ", "WRITE"})
       shader_info.fragment_out(0, "VEC4", "FragColor")
 
       shader_info.vertex_source(shaderVert)
@@ -147,6 +155,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     t = time.process_time()
 
+    self.update_render_size(context.region.width, context.region.height)
+    self.depth_texture.clear(format='UINT', value=[0])
+
     self.init_shader()
     self.shader.bind()
 
@@ -162,13 +173,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     lightColor1 = f64_render.light1Color
     ambientColor = f64_render.ambientColor
 
-    # @TODO: according to the docs you can re-use 'batch.draw' later in the code (?)
-    #        in any case, only re-assign material settings if they changed
-
     fallback_objs = []
-    object_queue = [[], []]
     for obj in depsgraph.objects:
-      if obj.type == 'MESH':                
+      if obj.type == 'MESH':
 
         meshID = obj.name + "#" + obj.data.name
 
@@ -212,76 +219,83 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         if not obj_has_f3d_materials(obj):
           fallback_objs.append(obj)
           continue
-
-        if obj.material_slots[0].material.f3d_mat.draw_layer.oot == 'Transparent':
-          object_queue[1].append(obj)
-        else:
-          object_queue[0].append(obj)
-          
+        
+    self.shader.image('depth_texture', self.depth_texture)
+    
     # Draw opaque objects first, then transparent ones
-    for obj in object_queue[0] + object_queue[1]:
-      # print("  -> Draw object", meshID)
-      meshID = obj.name + "#" + obj.data.name
-      renderObj: MeshBuffers = f64render_meshCache[meshID]
+    #for obj in object_queue[0] + object_queue[1]:
+    for layer in range(2):
+      for obj in depsgraph.objects:
+        if obj.type != 'MESH': continue
 
-      modelview_matrix = obj.matrix_world
-      projection_matrix = context.region_data.perspective_matrix
-      mvp_matrix = projection_matrix @ modelview_matrix
-      normal_matrix = (obj.matrix_world @ context.region_data.view_matrix).to_3x3().inverted().transposed()
-      self.shader.uniform_float("matMVP", mvp_matrix)
-      self.shader.uniform_float("matNorm", normal_matrix)
+        # print("  -> Draw object", meshID)
+        meshID = obj.name + "#" + obj.data.name
+        renderObj: MeshBuffers = f64render_meshCache[meshID]
 
-      mat_idx = 0        
-      for slot in obj.material_slots:
-        indices_count = renderObj.index_offsets[mat_idx+1] - renderObj.index_offsets[mat_idx]
-        if indices_count == 0: # ignore unused materials
-          mat_idx += 1
-          continue
-        
-        f3d_mat = slot.material.f3d_mat                    
-        if f64render_materials_dirty or renderObj.materials[mat_idx] is None:
-          renderObj.materials[mat_idx] = f64_material_parse(f3d_mat, renderObj.materials[mat_idx])
+        modelview_matrix = obj.matrix_world
+        projection_matrix = context.region_data.perspective_matrix
+        mvp_matrix = projection_matrix @ modelview_matrix
+        normal_matrix = (obj.matrix_world @ context.region_data.view_matrix).to_3x3().inverted().transposed()
+        self.shader.uniform_float("matMVP", mvp_matrix)
+        self.shader.uniform_float("matNorm", normal_matrix)
 
-        f64mat = renderObj.materials[mat_idx]
-        gpu.state.face_culling_set(f64mat.cull)
-        gpu.state.blend_set(f64mat.blend)
-        
-        if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
-        if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
-        self.shader.uniform_int("inFlags", f64mat.flags)
+        mat_idx = 0        
+        for slot in obj.material_slots:
+          indices_count = renderObj.index_offsets[mat_idx+1] - renderObj.index_offsets[mat_idx]
+          if indices_count == 0: # ignore unused materials
+            mat_idx += 1
+            continue
+          
+          f3d_mat = slot.material.f3d_mat                    
+          if f64render_materials_dirty or renderObj.materials[mat_idx] is None:
+            renderObj.materials[mat_idx] = f64_material_parse(f3d_mat, renderObj.materials[mat_idx])
 
-        cc_data = renderObj.cc_data[mat_idx]
-        cc_data[0:4] = lightColor0
-        cc_data[4:8] = lightColor1
-        cc_data[8:11] = lightDir0
-        cc_data[12:15] = lightDir1
-        cc_data[16:20] = f64mat.color_prim
-        cc_data[20:24] = f64mat.color_env
-        cc_data[24:28] = ambientColor
-        # cc_data[28:31] = (padding)
-        cc_data[31] = f64mat.alphaClip # 0.75
+          f64mat = renderObj.materials[mat_idx]
+          if f64mat.queue != layer: # skip if not in current layer
+            mat_idx += 1
+            continue
 
-        renderObj.cc_data
-        
-        renderObj.ubo_cc_data[mat_idx].update(renderObj.cc_data[mat_idx])                        
-        self.shader.uniform_block("ccData", renderObj.ubo_cc_data[mat_idx])
-        
-        # renderObj.cc_conf[mat_idx][0:16] = f64mat.cc
-        renderObj.ubo_cc_conf[mat_idx].update(f64mat.cc)
-        self.shader.uniform_block("ccConf", renderObj.ubo_cc_conf[mat_idx])
+          gpu.state.face_culling_set(f64mat.cull)
+          gpu.state.blend_set(f64mat.blend)
+          gpu.state.depth_test_set(f64mat.depth_test)
+          gpu.state.depth_mask_set(f64mat.depth_write)
+          
+          if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
+          if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
+          self.shader.uniform_int("inFlags", f64mat.flags)
 
-        if f64mat.tile_conf is not None:
-          renderObj.ubo_tile_conf[mat_idx].update(f64mat.tile_conf)
-          self.shader.uniform_block("tileConf", renderObj.ubo_tile_conf[mat_idx])
+          cc_data = renderObj.cc_data[mat_idx]
+          cc_data[0:4] = lightColor0
+          cc_data[4:8] = lightColor1
+          cc_data[8:11] = lightDir0
+          cc_data[12:15] = lightDir1
+          cc_data[16:20] = f64mat.color_prim
+          cc_data[20:24] = f64mat.color_env
+          cc_data[24:28] = ambientColor
+          # cc_data[28:31] = (padding)
+          cc_data[31] = f64mat.alphaClip # 0.75
 
-        # @TODO: is frustum-culling necessary, or done by blender?
-        
-        renderObj.batch.draw_range(self.shader, elem_start=renderObj.index_offsets[mat_idx], elem_count=indices_count)
-        mat_idx += 1  
+          renderObj.cc_data
+          
+          renderObj.ubo_cc_data[mat_idx].update(renderObj.cc_data[mat_idx])                        
+          self.shader.uniform_block("ccData", renderObj.ubo_cc_data[mat_idx])
+          
+          # renderObj.cc_conf[mat_idx][0:16] = f64mat.cc
+          renderObj.ubo_cc_conf[mat_idx].update(f64mat.cc)
+          self.shader.uniform_block("ccConf", renderObj.ubo_cc_conf[mat_idx])
+
+          if f64mat.tile_conf is not None:
+            renderObj.ubo_tile_conf[mat_idx].update(f64mat.tile_conf)
+            self.shader.uniform_block("tileConf", renderObj.ubo_tile_conf[mat_idx])
+
+          # @TODO: is frustum-culling necessary, or done by blender?
+          
+          renderObj.batch.draw_range(self.shader, elem_start=renderObj.index_offsets[mat_idx], elem_count=indices_count)
+          mat_idx += 1  
 
     f64render_materials_dirty = False
     print("Time F3D (ms)", (time.process_time() - t) * 1000)
-    
+          
     if len(fallback_objs) > 0:
       t = time.process_time()
       self.shader_fallback.bind()

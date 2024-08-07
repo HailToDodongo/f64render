@@ -34,11 +34,12 @@
 #define CC_A_PRIM_LOD_FRAC 9
 
 // Draw flags (custom for the shader)
-#define DRAW_FLAG_FLATSHADE (1 << 0)
-#define DRAW_FLAG_FILTER_TRI (1 << 1)
+#define DRAW_FLAG_FLATSHADE    (1 << 0)
+#define DRAW_FLAG_FILTER_TRI   (1 << 1)
 #define DRAW_FLAG_UVGEN_SPHERE (1 << 2)
-#define DRAW_FLAG_TEX0_MONO (1 << 3)
-#define DRAW_FLAG_TEX1_MONO (1 << 4)
+#define DRAW_FLAG_TEX0_MONO    (1 << 3)
+#define DRAW_FLAG_TEX1_MONO    (1 << 4)
+#define DRAW_FLAG_DECAL        (1 << 5)
 
 struct TileConf {
   vec2 mask;

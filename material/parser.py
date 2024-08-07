@@ -7,11 +7,12 @@ import time
 from .tile import get_tile_conf
 from .cc import get_cc_settings
 
-DRAW_FLAG_FLATSHADE  = (1 << 0)
-DRAW_FLAG_FILTER_TRI = (1 << 1)
+DRAW_FLAG_FLATSHADE    = (1 << 0)
+DRAW_FLAG_FILTER_TRI   = (1 << 1)
 DRAW_FLAG_UVGEN_SPHERE = (1 << 2)
-DRAW_FLAG_TEX0_MONO = (1 << 3)
-DRAW_FLAG_TEX1_MONO = (1 << 4)
+DRAW_FLAG_TEX0_MONO    = (1 << 3)
+DRAW_FLAG_TEX1_MONO    = (1 << 4)
+DRAW_FLAG_DECAL        = (1 << 5)
 
 @dataclass
 class F64Material:
@@ -21,8 +22,11 @@ class F64Material:
     tile_conf: np.ndarray = None
     cull: str = 'NONE'
     blend: str = 'NONE'
+    depth_test: str = 'LESS_EQUAL'
+    depth_write: bool = True
     flags: int = 0
     alphaClip: float = -1.0
+    queue: int = 0
     tex0Buff: gpu.types.GPUTexture = None
     tex1Buff: gpu.types.GPUTexture = None
 
@@ -50,36 +54,26 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
   is_one_cycle = f3d_mat.rdp_settings.g_mdsft_cycletype == "G_CYC_1CYCLE"
 
   if f3d_mat.rdp_settings.set_rendermode:
-    if f3d_mat.rdp_settings.rendermode_advanced_enabled:
-        if f3d_mat.rdp_settings.cvg_x_alpha:
-            f64mat.alphaClip = 0.75
-        elif (
-            is_one_cycle
-            and f3d_mat.rdp_settings.force_bl
-            and f3d_mat.rdp_settings.blend_p1 == "G_BL_CLR_IN"
-            and f3d_mat.rdp_settings.blend_a1 == "G_BL_A_IN"
-            and f3d_mat.rdp_settings.blend_m1 == "G_BL_CLR_MEM"
-            and f3d_mat.rdp_settings.blend_b1 == "G_BL_1MA"
-        ):
-            f64mat.blend = "ALPHA"
-        elif (
-            not is_one_cycle
-            and f3d_mat.rdp_settings.force_bl
-            and f3d_mat.rdp_settings.blend_p2 == "G_BL_CLR_IN"
-            and f3d_mat.rdp_settings.blend_a2 == "G_BL_A_IN"
-            and f3d_mat.rdp_settings.blend_m2 == "G_BL_CLR_MEM"
-            and f3d_mat.rdp_settings.blend_b2 == "G_BL_1MA"
-        ):
-            f64mat.blend = "ALPHA"
-    else:
-        rendermode = f3d_mat.rdp_settings.rendermode_preset_cycle_1
-        if not is_one_cycle:
-          rendermode = f3d_mat.rdp_settings.rendermode_preset_cycle_2
-
-        if rendermode == "G_RM_AA_ZB_TEX_EDGE2":
-          f64mat.alphaClip = 0.75
-        elif "XLU" in rendermode:
-          f64mat.blend = "ALPHA"
+    if f3d_mat.rdp_settings.cvg_x_alpha:
+        f64mat.alphaClip = 0.75
+    elif (
+        is_one_cycle
+        and f3d_mat.rdp_settings.force_bl
+        and f3d_mat.rdp_settings.blend_p1 == "G_BL_CLR_IN"
+        and f3d_mat.rdp_settings.blend_a1 == "G_BL_A_IN"
+        and f3d_mat.rdp_settings.blend_m1 == "G_BL_CLR_MEM"
+        and f3d_mat.rdp_settings.blend_b1 == "G_BL_1MA"
+    ):
+        f64mat.blend = "ALPHA"
+    elif (
+        not is_one_cycle
+        and f3d_mat.rdp_settings.force_bl
+        and f3d_mat.rdp_settings.blend_p2 == "G_BL_CLR_IN"
+        and f3d_mat.rdp_settings.blend_a2 == "G_BL_A_IN"
+        and f3d_mat.rdp_settings.blend_m2 == "G_BL_CLR_MEM"
+        and f3d_mat.rdp_settings.blend_b2 == "G_BL_1MA"
+    ):
+        f64mat.blend = "ALPHA"
 
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   f64mat = F64Material(
@@ -96,6 +90,17 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   f64mat.flags = 0 if f3d_mat.rdp_settings.g_shade_smooth else DRAW_FLAG_FLATSHADE
   f64mat.flags |= DRAW_FLAG_FILTER_TRI if (f3d_mat.rdp_settings.g_mdsft_text_filt == 'G_TF_BILERP') else 0
   f64mat.flags |= DRAW_FLAG_UVGEN_SPHERE if f3d_mat.rdp_settings.g_tex_gen else 0
+  
+  if f3d_mat.draw_layer.oot == 'Transparent':
+    f64mat.queue = 1
+
+  if f3d_mat.rdp_settings.zmode == 'ZMODE_DEC':
+    f64mat.flags |= DRAW_FLAG_DECAL
+
+  if not f3d_mat.rdp_settings.z_cmp:
+    f64mat.depth_test = 'NONE'
+
+  f64mat.depth_write = f3d_mat.rdp_settings.z_upd
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
   if f3d_mat.tex0.tex:

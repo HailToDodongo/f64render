@@ -1,4 +1,10 @@
 
+// allows for a per-pixel atomic access to the depth texture (needed for decals)
+#extension GL_ARB_fragment_shader_interlock : enable
+layout(pixel_interlock_ordered) in;
+
+#define DECAL_DEPTH_DELTA 100
+
 void fetchTex01Filtered(in ivec4 texSize, out vec4 texData0, out vec4 texData1)
 {
   // Original 3-point code taken from: https://www.shadertoy.com/view/Ws2fWV (By: cyrb)
@@ -149,4 +155,25 @@ void main()
   ccValue.rgb = gammaToLinear(ccValue.rgb);
   if(ccValue.a < ccData.alphaClip)discard;
   FragColor = ccValue;
+
+  // Depth / Decal handling:
+  // We manually write & check depth values in an image in addition to the actual depth buffer.
+  // This allows us to do manual compares (e.g. decals) and discard fragments based on that.
+  // In order to guarantee proper ordering, we both use atomic image access as well as an invocation interlock per pixel.
+  // If those where not used, a race-condition will occur where after a depth read happens, the depth value might have changed,
+  // leading to culled faces writing their color values even though a new triangles has a closer depth value already written.
+  ivec2 screenPosPixel = ivec2(gl_FragCoord.xy);
+  int currDepth = int(gl_FragCoord.w * 0xFFFFF);
+  int writeDepth = int(flagSelect(DRAW_FLAG_DECAL, currDepth, -0xFFFFFF));
+
+  beginInvocationInterlockARB();
+  {
+    int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
+    int depthDiff = abs(oldDepth - currDepth);
+
+    if((flags & DRAW_FLAG_DECAL) != 0 && depthDiff > DECAL_DEPTH_DELTA) {
+      discard;
+    }
+  }
+  endInvocationInterlockARB();
 }
