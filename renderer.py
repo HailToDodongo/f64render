@@ -173,6 +173,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     lightColor1 = f64_render.light1Color
     ambientColor = f64_render.ambientColor
 
+    lastPrimColor = np.array([1, 1, 1, 1], dtype=np.float32)
+    lastEnvColor = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+
     fallback_objs = []
     for obj in depsgraph.objects:
       if obj.type == 'MESH':
@@ -265,15 +268,18 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           self.shader.uniform_int("inFlags", f64mat.flags)
 
           cc_data = renderObj.cc_data[mat_idx]
-          cc_data[0:4] = lightColor0
+          cc_data[0:4] = f64mat.color_light if f64mat.set_light else lightColor0
           cc_data[4:8] = lightColor1
           cc_data[8:11] = lightDir0
           cc_data[12:15] = lightDir1
-          cc_data[16:20] = f64mat.color_prim
-          cc_data[20:24] = f64mat.color_env
-          cc_data[24:28] = ambientColor
+          cc_data[16:20] = f64mat.color_prim    if f64mat.set_prim    else lastPrimColor
+          cc_data[20:24] = f64mat.color_env     if f64mat.set_env     else lastEnvColor
+          cc_data[24:28] = f64mat.color_ambient if f64mat.set_ambient else ambientColor
           # cc_data[28:31] = (padding)
           cc_data[31] = f64mat.alphaClip # 0.75
+
+          if f64mat.set_prim: lastPrimColor = f64mat.color_prim
+          if f64mat.set_env: lastEnvColor = f64mat.color_env
 
           renderObj.cc_data
           

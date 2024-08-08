@@ -153,7 +153,10 @@ void main()
   ccValue = cc_clampValue(ccValue);
 
   ccValue.rgb = gammaToLinear(ccValue.rgb);
+
   if(ccValue.a < ccData.alphaClip)discard;
+
+  ccValue.a = flagSelect(DRAW_FLAG_ALPHA_BLEND, 1.0, ccValue.a);
   FragColor = ccValue;
 
   // Depth / Decal handling:

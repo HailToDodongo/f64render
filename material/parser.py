@@ -13,11 +13,20 @@ DRAW_FLAG_UVGEN_SPHERE = (1 << 2)
 DRAW_FLAG_TEX0_MONO    = (1 << 3)
 DRAW_FLAG_TEX1_MONO    = (1 << 4)
 DRAW_FLAG_DECAL        = (1 << 5)
+DRAW_FLAG_ALPHA_BLEND  = (1 << 6)
 
 @dataclass
 class F64Material:
     color_prim: np.ndarray
     color_env: np.ndarray
+    color_ambient: np.ndarray = None
+    color_light: np.ndarray = None
+    
+    set_prim: bool = False
+    set_env: bool = False
+    set_ambient: bool = False
+    set_light: bool = False
+
     cc: np.ndarray = None
     tile_conf: np.ndarray = None
     cull: str = 'NONE'
@@ -65,6 +74,7 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
         and f3d_mat.rdp_settings.blend_b1 == "G_BL_1MA"
     ):
         f64mat.blend = "ALPHA"
+        f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
     elif (
         not is_one_cycle
         and f3d_mat.rdp_settings.force_bl
@@ -74,11 +84,27 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
         and f3d_mat.rdp_settings.blend_b2 == "G_BL_1MA"
     ):
         f64mat.blend = "ALPHA"
+        f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
+  else:
+    if f3d_mat.draw_layer.sm64 == '4':
+        f64mat.alphaClip = 0.75
+    elif f3d_mat.draw_layer.sm64 in ['5', '6','7']:
+        f64mat.blend = "ALPHA"
+        f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
 
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   f64mat = F64Material(
      color_prim = f3d_mat.prim_color,
-     color_env = f3d_mat.env_color,
+     set_prim   = f3d_mat.set_prim,
+     color_env  = f3d_mat.env_color,
+     set_env    = f3d_mat.set_env,
+
+     color_ambient = f3d_mat.ambient_light_color,
+     color_light = f3d_mat.default_light_color,
+     set_ambient = f3d_mat.set_lights,
+     set_light   = f3d_mat.set_lights, # shared flag
+
+     flags = 0,
      cc = get_cc_settings(f3d_mat)
   )
 
@@ -87,11 +113,11 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   
   f64_parse_blend_mode(f3d_mat, f64mat)
 
-  f64mat.flags = 0 if f3d_mat.rdp_settings.g_shade_smooth else DRAW_FLAG_FLATSHADE
+  f64mat.flags |= 0 if f3d_mat.rdp_settings.g_shade_smooth else DRAW_FLAG_FLATSHADE
   f64mat.flags |= DRAW_FLAG_FILTER_TRI if (f3d_mat.rdp_settings.g_mdsft_text_filt == 'G_TF_BILERP') else 0
   f64mat.flags |= DRAW_FLAG_UVGEN_SPHERE if f3d_mat.rdp_settings.g_tex_gen else 0
   
-  if f3d_mat.draw_layer.oot == 'Transparent':
+  if f3d_mat.draw_layer.oot == 'Transparent' or f3d_mat.draw_layer.sm64 in ['5', '6','7']:
     f64mat.queue = 1
 
   if f3d_mat.rdp_settings.zmode == 'ZMODE_DEC':
