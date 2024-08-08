@@ -2,7 +2,8 @@
 void main() 
 {
   // Directional light
-  vec3 norm = normalize(matNorm * inNormal);
+  vec3 norm = inNormal;
+  vec3 normScreen = normalize(matNorm * norm);
 
   vec4 lightTotal = vec4(ccData.ambientColor.rgb, 0.0);
   for(int i=0; i<2; ++i) {
@@ -24,7 +25,7 @@ void main()
   cc_prim.a = ccData.prim.a;
 
   flags = inFlags;
-  vec2 uvGen = flagSelect(DRAW_FLAG_UVGEN_SPHERE, inUV, norm.xy * 0.5 + 0.5);
+  vec2 uvGen = flagSelect(DRAW_FLAG_UVGEN_SPHERE, inUV, normScreen.xy * 0.5 + 0.5);
 
   // turn UVs ionto pixel-space, apply first tile settings
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0));
