@@ -1,6 +1,5 @@
 import os
 import bpy
-import addon_utils
 import sys
 import typing
 import inspect
