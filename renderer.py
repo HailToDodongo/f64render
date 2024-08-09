@@ -1,4 +1,6 @@
+import math
 import bpy
+import mathutils
 import gpu
 from .mesh.gpu_batch import batch_for_shader
 from .material.parser import create_f64_material, f64_material_parse, node_material_parse
@@ -11,6 +13,9 @@ from .mesh.mesh import MeshBuffers, mesh_to_buffers
 f64render_materials_dirty = True
 f64render_instance = None
 f64render_meshCache: dict[MeshBuffers] = {}
+
+# N64 is y-up, blender is z-up
+yup_to_zup = mathutils.Quaternion((1, 0, 0), math.radians(90.0)).to_matrix().to_4x4()
 
 def cache_del_by_mesh(mesh_name):
   global f64render_meshCache
@@ -167,8 +172,11 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     # global params
     f64_render = depsgraph.scene.fast64.renderSettings
-    lightDir0 = f64_render.light0Direction
-    lightDir1 = f64_render.light1Direction
+    lightDir0, lightDir1 = f64_render.light0Direction, f64_render.light1Direction
+    if not f64_render.useWorldSpaceLighting:
+      view_rotation = (mathutils.Quaternion((1, 0, 0), math.radians(90.0)) @ context.region_data.view_matrix.to_quaternion()).to_matrix()
+      lightDir0, lightDir1 = lightDir0 @ view_rotation, lightDir1 @ view_rotation
+    lightDir0, lightDir1 = lightDir0 @ yup_to_zup, lightDir1 @ yup_to_zup
     lightColor0 = f64_render.light0Color
     lightColor1 = f64_render.light1Color
     ambientColor = f64_render.ambientColor

@@ -8,7 +8,7 @@ void main()
   vec4 lightTotal = vec4(ccData.ambientColor.rgb, 0.0);
   for(int i=0; i<2; ++i) {
     float lightStren = max(dot(norm, ccData.lightDir[i].xyz), 0.0);
-    lightTotal += ccData.lightColor[i] * lightStren*lightStren;
+    lightTotal += ccData.lightColor[i] * (lightStren * 2);
   }
 
   lightTotal = clamp(lightTotal, 0.0, 1.0);
