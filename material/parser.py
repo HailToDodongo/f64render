@@ -17,13 +17,18 @@ DRAW_FLAG_ALPHA_BLEND  = (1 << 6)
 
 @dataclass
 class F64Material:
-    color_prim: np.ndarray
-    color_env: np.ndarray
-    color_ambient: np.ndarray = None
-    color_light: np.ndarray = None
+    color_prim: tuple
+    lod_prim: tuple
+    color_env: tuple
+    ck: tuple
+    convert: tuple
+    color_ambient: tuple = None
+    color_light: tuple= None
     
     set_prim: bool = False
     set_env: bool = False
+    set_ck: bool = False
+    set_convert: bool = False
     set_ambient: bool = False
     set_light: bool = False
 
@@ -87,20 +92,24 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
         f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
   else:
     if f3d_mat.draw_layer.sm64 == '4':
-        f64mat.alphaClip = 0.75
+        f64mat.alphaClip = 0.125
     elif f3d_mat.draw_layer.sm64 in ['5', '6','7']:
         f64mat.blend = "ALPHA"
         f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
 
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   f64mat = F64Material(
-     color_prim = f3d_mat.prim_color,
+     color_prim = list(f3d_mat.prim_color),
+     lod_prim   = [f3d_mat.prim_lod_min, f3d_mat.prim_lod_frac],
      set_prim   = f3d_mat.set_prim,
-     color_env  = f3d_mat.env_color,
+     color_env  = list(f3d_mat.env_color),
      set_env    = f3d_mat.set_env,
-
-     color_ambient = f3d_mat.ambient_light_color,
-     color_light = f3d_mat.default_light_color,
+     ck = list(f3d_mat.key_center) + list(f3d_mat.key_scale) + [0.0], # alpha goes unused, but fixes alignement
+     set_ck = f3d_mat.set_key,
+     convert=[getattr(f3d_mat, f"k{i}") for i in range(0, 6)],
+     set_convert=f3d_mat.set_k0_5,
+     color_ambient = list(f3d_mat.ambient_light_color),
+     color_light = list(f3d_mat.default_light_color),
      set_ambient = f3d_mat.set_lights,
      set_light   = f3d_mat.set_lights, # shared flag
 
