@@ -2,6 +2,7 @@ import math
 import bpy
 import mathutils
 import gpu
+from .utils.addon import addon_set_fast64_path
 from .mesh.gpu_batch import batch_for_shader
 from .material.parser import create_f64_material, f64_material_parse, node_material_parse
 import pathlib
@@ -36,6 +37,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
   def __init__(self):
     super().__init__()
+    addon_set_fast64_path()
+
     self.shader = None
     self.shader_fallback = None
     self.draw_handler = None
