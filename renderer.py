@@ -2,6 +2,7 @@ import math
 import bpy
 import mathutils
 import gpu
+from .utils.addon import addon_set_fast64_path
 from .mesh.gpu_batch import batch_for_shader
 from .material.parser import F64Material, f64_material_parse, node_material_parse
 import pathlib
@@ -36,6 +37,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
   def __init__(self):
     super().__init__()
+    addon_set_fast64_path()
+
     self.shader = None
     self.shader_fallback = None
     self.draw_handler = None
@@ -309,10 +312,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           cc_data[20:24] = f64mat.color_env     if f64mat.set_env         else lastEnvColor
           cc_data[24:28] = f64mat.color_ambient if f64mat.set_ambient     else ambientColor
           cc_data[28:36] = f64mat.ck            if f64mat.set_ck          else last_ck
-          cc_data[36:38] = f64mat.prim_depth
-          cc_data[38:40] = f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod
-          cc_data[40:46] = f64mat.convert       if f64mat.set_convert     else last_convert
-          cc_data[46] = f64mat.alphaClip # 0.75
+          cc_data[36:38] = f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod
+          cc_data[38:44] = f64mat.convert       if f64mat.set_convert     else last_convert
+          cc_data[44] = f64mat.alphaClip
 
           if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
           if f64mat.set_env: lastEnvColor = f64mat.color_env

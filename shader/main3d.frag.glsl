@@ -46,8 +46,8 @@ void fetchTex01Filtered(in ivec4 texSize, out vec4 texData0, out vec4 texData1)
 vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in vec4 texData1)
 {
        if(val == CC_C_COMB       ) return comb.rgb;
-  else if(val == CC_C_TEX0       ) return linearToGamma(texData0.rgb);
-  else if(val == CC_C_TEX1       ) return linearToGamma(texData1.rgb);
+  else if(val == CC_C_TEX0       ) return texData0.rgb;
+  else if(val == CC_C_TEX1       ) return texData1.rgb;
   else if(val == CC_C_PRIM       ) return cc_prim_color.rgb;
   else if(val == CC_C_SHADE      ) return shade.rgb;
   else if(val == CC_C_ENV        ) return cc_env.rgb;
@@ -124,6 +124,8 @@ void main()
   }
 
   // handle I4/I8
+  texData0.rgb = linearToGamma(texData0.rgb);
+  texData1.rgb = linearToGamma(texData1.rgb);
   texData0.rgba = flagSelect(DRAW_FLAG_TEX0_MONO, texData0.rgba, texData0.rrrr);
   texData1.rgba = flagSelect(DRAW_FLAG_TEX1_MONO, texData1.rgba, texData1.rrrr);
 

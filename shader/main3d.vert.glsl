@@ -24,6 +24,7 @@ void main()
 #else
   cc_shade.rgb = geoModeSelect(G_LIGHTING, cc_shade.rgb, lightTotal.rgb);
 #endif
+  cc_shade = clamp(cc_shade, 0.0, 1.0);
   cc_shade.a = 1.0;
   cc_shade_flat = cc_shade;
 
