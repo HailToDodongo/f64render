@@ -168,6 +168,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     t = time.process_time()
 
+    space_view_3d = context.space_data
     self.update_render_size(context.region.width, context.region.height)
     self.depth_texture.clear(format='UINT', value=[0])
 
@@ -243,12 +244,15 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           continue
         
     self.shader.image('depth_texture', self.depth_texture)
-    
+
     # Draw opaque objects first, then transparent ones
     #for obj in object_queue[0] + object_queue[1]:
     for layer in range(2):
       for obj in depsgraph.objects:
         if obj.type != 'MESH': continue
+
+        # Handle "Local View" (pressing '/')
+        if space_view_3d.local_view and not obj.local_view_get(space_view_3d): continue
 
         # print("  -> Draw object", meshID)
         meshID = obj.name + "#" + obj.data.name
