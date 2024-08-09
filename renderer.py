@@ -3,7 +3,7 @@ import bpy
 import mathutils
 import gpu
 from .mesh.gpu_batch import batch_for_shader
-from .material.parser import create_f64_material, f64_material_parse, node_material_parse
+from .material.parser import F64Material, f64_material_parse, node_material_parse
 import pathlib
 import time
 import numpy as np
@@ -330,7 +330,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
         # get material (we don't expect any changes here, so caching is fine)
         if renderObj.materials is None or len(renderObj.materials) == 0:
-          renderObj.materials = [create_f64_material()]
+          renderObj.materials = [F64Material()]
           if obj.material_slots:
             mat = obj.material_slots[0].materials[0]
             renderObj.materials[0] = node_material_parse(mat)

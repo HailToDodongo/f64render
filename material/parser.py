@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import bpy
 import numpy as np
 import gpu
@@ -17,11 +17,11 @@ DRAW_FLAG_ALPHA_BLEND  = (1 << 6)
 
 @dataclass
 class F64Material:
-    color_prim: tuple
-    lod_prim: tuple
-    color_env: tuple
-    ck: tuple
-    convert: tuple
+    color_prim: tuple = field(default_factory=lambda: (1, 1, 1, 1))
+    lod_prim: tuple = field(default_factory=lambda: (0, 0))
+    color_env: tuple = field(default_factory=lambda: (0.5, 0.5, 0.5, 0.5))
+    ck: tuple = field(default_factory=lambda: (0, 0, 0, 0, 0, 0, 0, 0))
+    convert: tuple = field(default_factory=lambda: (0, 0, 0, 0, 0, 0))
     color_ambient: tuple = None
     color_light: tuple= None
     
@@ -44,11 +44,6 @@ class F64Material:
     tex0Buff: gpu.types.GPUTexture = None
     tex1Buff: gpu.types.GPUTexture = None
 
-def create_f64_material():
-  return F64Material(
-     np.array([1, 1, 1, 1], dtype=np.float32),
-     np.array([1, 1, 1, 1], dtype=np.float32),
-  )
 
 # parses a non-f3d material for the fallback renderer
 def node_material_parse(mat: bpy.types.Material) -> F64Material:
