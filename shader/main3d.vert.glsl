@@ -10,13 +10,12 @@ void main()
     float lightStren = max(dot(norm, ccData.lightDir[i].xyz), 0.0);
     lightTotal += ccData.lightColor[i] * (lightStren * 2);
   }
-
-  lightTotal = clamp(lightTotal, 0.0, 1.0);
   
   // Ambient light
   cc_shade.rgb = linearToGamma(lightTotal.rgb);
   cc_shade.a = 1.0;
   cc_shade *= inColor;
+  cc_shade = clamp(cc_shade, 0.0, 1.0);
   cc_shade_flat = cc_shade;
 
   cc_env.rgb = linearToGamma(ccData.env.rgb);
