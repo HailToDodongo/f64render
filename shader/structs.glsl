@@ -4,10 +4,13 @@ struct UBO_CCData
 {
   vec4 lightColor[2];
   vec4 lightDir[2];
-  vec4 prim;
+  vec4 prim_color;
   vec4 env;
   vec4 ambientColor;
-  vec3 _padding;
+  vec4 ck_center;
+  vec4 ck_scale;
+  float prim_lod_min, prim_lod_frac;
+  float k0, k1, k2, k3, k4, k5;
   float alphaClip;
 };
 

@@ -85,7 +85,12 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.no_perspective("VEC4", "cc_shade")
       vert_out.flat("VEC4", "cc_shade_flat")
       vert_out.smooth("VEC4", "cc_env")
-      vert_out.smooth("VEC4", "cc_prim")
+      vert_out.smooth("VEC4", "cc_prim_color")
+      vert_out.smooth("FLOAT", "cc_prim_lod_frac")
+      vert_out.smooth("VEC3", "cc_ck_center")
+      vert_out.smooth("VEC3", "cc_ck_scale")
+      vert_out.smooth("FLOAT", "cc_k4")
+      vert_out.smooth("FLOAT", "cc_k5")
       vert_out.smooth("VEC4", "uv")
       vert_out.no_perspective("VEC2", "posScreen")
       vert_out.flat("VEC4", "tileSize")
@@ -182,7 +187,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     ambientColor = f64_render.ambientColor
 
     lastPrimColor = np.array([1, 1, 1, 1], dtype=np.float32)
+    last_prim_lod = np.array([0, 0], dtype=np.float32)
     lastEnvColor = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+    last_ck = np.array([0, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
+    last_convert = np.array([0, 0, 0, 0, 0, 0], dtype=np.float32)
 
     fallback_objs = []
     for obj in depsgraph.objects:
@@ -212,7 +220,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             renderObj.indices
           )
 
-          renderObj.cc_data = [np.zeros(4*8, dtype=np.float32)] * mat_count
+          renderObj.cc_data = [np.zeros(4*12, dtype=np.float32)] * mat_count
           renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
 
           renderObj.ubo_cc_data = [None] * mat_count
@@ -280,16 +288,18 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           cc_data[4:8] = lightColor1
           cc_data[8:11] = lightDir0
           cc_data[12:15] = lightDir1
-          cc_data[16:20] = f64mat.color_prim    if f64mat.set_prim    else lastPrimColor
-          cc_data[20:24] = f64mat.color_env     if f64mat.set_env     else lastEnvColor
-          cc_data[24:28] = f64mat.color_ambient if f64mat.set_ambient else ambientColor
-          # cc_data[28:31] = (padding)
-          cc_data[31] = f64mat.alphaClip # 0.75
+          cc_data[16:20] = f64mat.color_prim    if f64mat.set_prim        else lastPrimColor
+          cc_data[20:24] = f64mat.color_env     if f64mat.set_env         else lastEnvColor
+          cc_data[24:28] = f64mat.color_ambient if f64mat.set_ambient     else ambientColor
+          cc_data[28:36] = f64mat.ck            if f64mat.set_ck          else last_ck
+          cc_data[36:38] = f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod
+          cc_data[38:44] = f64mat.convert       if f64mat.set_convert     else last_convert
+          cc_data[44] = f64mat.alphaClip # 0.75
 
-          if f64mat.set_prim: lastPrimColor = f64mat.color_prim
+          if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
           if f64mat.set_env: lastEnvColor = f64mat.color_env
-
-          renderObj.cc_data
+          if f64mat.set_ck: last_ck = f64mat.ck
+          if f64mat.set_convert: last_convert = f64mat.convert
           
           renderObj.ubo_cc_data[mat_idx].update(renderObj.cc_data[mat_idx])                        
           self.shader.uniform_block("ccData", renderObj.ubo_cc_data[mat_idx])
