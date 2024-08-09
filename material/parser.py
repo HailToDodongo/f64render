@@ -64,7 +64,7 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
 
   if f3d_mat.rdp_settings.set_rendermode:
     if f3d_mat.rdp_settings.cvg_x_alpha:
-        f64mat.alphaClip = 0.75
+        f64mat.alphaClip = 0.49
     elif (
         is_one_cycle
         and f3d_mat.rdp_settings.force_bl

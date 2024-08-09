@@ -297,7 +297,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           cc_data[28:36] = f64mat.ck            if f64mat.set_ck          else last_ck
           cc_data[36:38] = f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod
           cc_data[38:44] = f64mat.convert       if f64mat.set_convert     else last_convert
-          cc_data[44] = f64mat.alphaClip # 0.75
+          cc_data[44] = f64mat.alphaClip
 
           if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
           if f64mat.set_env: lastEnvColor = f64mat.color_env
