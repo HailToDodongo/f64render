@@ -20,9 +20,14 @@ void main()
   cc_shade_flat = cc_shade;
 
   cc_env.rgb = linearToGamma(ccData.env.rgb);
-  cc_prim.rgb = linearToGamma(ccData.prim.rgb);
+  cc_prim_color.rgb = linearToGamma(ccData.prim_color.rgb);
   cc_env.a = ccData.env.a;
-  cc_prim.a = ccData.prim.a;
+  cc_prim_color.a = ccData.prim_color.a;
+  cc_prim_lod_frac = ccData.prim_lod_frac;
+  cc_ck_center = linearToGamma(ccData.ck_center.rgb);
+  cc_ck_scale = ccData.ck_scale.rgb;
+  cc_k4 = ccData.k4;
+  cc_k5 = ccData.k5;
 
   flags = inFlags;
   vec2 uvGen = flagSelect(DRAW_FLAG_UVGEN_SPHERE, inUV, normScreen.xy * 0.5 + 0.5);
