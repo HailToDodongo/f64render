@@ -1,5 +1,6 @@
 import os
 import bpy
+import addon_utils
 import sys
 import typing
 import inspect
@@ -34,6 +35,12 @@ def register():
             continue
         if hasattr(module, "register"):
             module.register()
+    for addon in addon_utils.modules():
+        if addon.bl_info.get("name") == "Fast64":
+            sys.path.append(sys.modules[addon.__name__].__path__[0])
+            break
+    else:
+        raise RuntimeError("Could not find fast64 addon")
 
 def unregister():
     for cls in reversed(ordered_classes):

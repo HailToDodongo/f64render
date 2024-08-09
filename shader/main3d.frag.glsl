@@ -96,13 +96,15 @@ vec4 cc_clampValue(in vec4 value)
 
 void main()
 {
+  if (((geoMode & G_CULL_BACK) != 0) && ((geoMode & G_CULL_FRONT) != 0)) discard;
+
   vec4 cc0[4]; // inputs for 1. cycle
   vec4 cc1[4]; // inputs for 2. cycle
   vec4 ccValue = vec4(0.0); // result after 1/2 cycle
 
   vec4 uvTex = uv;
 
-  vec4 ccShade = flagSelect(DRAW_FLAG_FLATSHADE, cc_shade, cc_shade_flat);
+  vec4 ccShade = geoModeSelect(G_SHADE_SMOOTH, cc_shade_flat, cc_shade);
 
   // pre-calc UVs for both textures + get two extra points for 3-point sampling
   // then sample both textures even if none are used. This is done to vectorize both
@@ -110,7 +112,7 @@ void main()
   vec4 texData0, texData1;
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0)) - 1;
 
-  if((flags & DRAW_FLAG_FILTER_TRI) != 0)
+  if((othermodeH & G_TF_BILERP) != 0)
   {
     fetchTex01Filtered(texSize, texData0, texData1);
   } else {
@@ -166,13 +168,14 @@ void main()
   // If those where not used, a race-condition will occur where after a depth read happens, the depth value might have changed,
   // leading to culled faces writing their color values even though a new triangles has a closer depth value already written.
   ivec2 screenPosPixel = ivec2(gl_FragCoord.xy);
-  int currDepth = int(gl_FragCoord.w * 0xFFFFF);
+
+  int currDepth = int(mixSelect(usePrimDepth(), gl_FragCoord.w * 0xFFFFF, primDepth.x));
   int writeDepth = int(flagSelect(DRAW_FLAG_DECAL, currDepth, -0xFFFFFF));
 
   beginInvocationInterlockARB();
   {
     int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
-    int depthDiff = abs(oldDepth - currDepth);
+    int depthDiff = int(mixSelect(usePrimDepth(), abs(oldDepth - currDepth), primDepth.y));
 
     if((flags & DRAW_FLAG_DECAL) != 0 && depthDiff > DECAL_DEPTH_DELTA) {
       discard;

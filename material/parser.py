@@ -7,18 +7,57 @@ import time
 from .tile import get_tile_conf
 from .cc import get_cc_settings
 
-DRAW_FLAG_FLATSHADE    = (1 << 0)
-DRAW_FLAG_FILTER_TRI   = (1 << 1)
-DRAW_FLAG_UVGEN_SPHERE = (1 << 2)
-DRAW_FLAG_TEX0_MONO    = (1 << 3)
-DRAW_FLAG_TEX1_MONO    = (1 << 4)
-DRAW_FLAG_DECAL        = (1 << 5)
-DRAW_FLAG_ALPHA_BLEND  = (1 << 6)
+GEO_MODE_ATTRS = [
+  "g_zbuffer",
+  "g_shade",
+  "g_cull_front",
+  "g_cull_back",
+  "g_ambocclusion",
+  "g_attroffset_z_enable",
+  "g_attroffset_st_enable",
+  "g_packed_normals",
+  "g_lighttoalpha",
+  "g_lighting_specular",
+  "g_fresnel_color",
+  "g_fresnel_alpha",
+  "g_fog",
+  "g_lighting",
+  "g_tex_gen",
+  "g_tex_gen_linear",
+  "g_lod",
+  "g_shade_smooth",
+  "g_clipping",
+]
+
+OTHERMODE_L_ATTRS = [
+  "g_mdsft_alpha_compare",
+  "g_mdsft_zsrcsel",
+]
+
+OTHERMODE_H_ATTRS = [
+  "g_mdsft_alpha_dither",
+  "g_mdsft_rgb_dither",
+  "g_mdsft_combkey",
+  "g_mdsft_textconv",
+  "g_mdsft_text_filt",
+  "g_mdsft_textlod",
+  "g_mdsft_textdetail",
+  "g_mdsft_textpersp",
+  "g_mdsft_cycletype",
+  "g_mdsft_pipeline",
+  # tlut
+]
+
+DRAW_FLAG_TEX0_MONO    = (1 << 1)
+DRAW_FLAG_TEX1_MONO    = (1 << 2)
+DRAW_FLAG_DECAL        = (1 << 3)
+DRAW_FLAG_ALPHA_BLEND  = (1 << 4)
 
 @dataclass
 class F64Material:
     color_prim: tuple = field(default_factory=lambda: (1, 1, 1, 1))
     lod_prim: tuple = field(default_factory=lambda: (0, 0))
+    prim_depth: tuple = field(default_factory=lambda: (0, 0))
     color_env: tuple = field(default_factory=lambda: (0.5, 0.5, 0.5, 0.5))
     ck: tuple = field(default_factory=lambda: (0, 0, 0, 0, 0, 0, 0, 0))
     convert: tuple = field(default_factory=lambda: (0, 0, 0, 0, 0, 0))
@@ -39,6 +78,9 @@ class F64Material:
     depth_test: str = 'LESS_EQUAL'
     depth_write: bool = True
     flags: int = 0
+    geo_mode: int = 0
+    othermode_l: int = 0
+    othermode_h: int = 0
     alphaClip: float = -1.0
     queue: int = 0
     tex0Buff: gpu.types.GPUTexture = None
@@ -96,6 +138,7 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   f64mat = F64Material(
      color_prim = list(f3d_mat.prim_color),
      lod_prim   = [f3d_mat.prim_lod_min, f3d_mat.prim_lod_frac],
+     prim_depth = [f3d_mat.rdp_settings.prim_depth.z, f3d_mat.rdp_settings.prim_depth.dz],
      set_prim   = f3d_mat.set_prim,
      color_env  = list(f3d_mat.env_color),
      set_env    = f3d_mat.set_env,
@@ -117,14 +160,23 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   
   f64_parse_blend_mode(f3d_mat, f64mat)
 
-  f64mat.flags |= 0 if f3d_mat.rdp_settings.g_shade_smooth else DRAW_FLAG_FLATSHADE
-  f64mat.flags |= DRAW_FLAG_FILTER_TRI if (f3d_mat.rdp_settings.g_mdsft_text_filt == 'G_TF_BILERP') else 0
-  f64mat.flags |= DRAW_FLAG_UVGEN_SPHERE if f3d_mat.rdp_settings.g_tex_gen else 0
+  from fast64_internal.f3d.f3d_gbi import get_F3D_GBI
+  from fast64_internal.f3d.f3d_material import get_textlut_mode
+  gbi = get_F3D_GBI()
+  geo_mode = othermode_l = othermode_h = 0
+  for i, attr in enumerate(GEO_MODE_ATTRS):
+    geo_mode |= int(getattr(f3d_mat.rdp_settings, attr)) << i
+  for i, attr in enumerate(OTHERMODE_L_ATTRS):
+    othermode_l |= getattr(gbi, getattr(f3d_mat.rdp_settings, attr))
+  for i, attr in enumerate(OTHERMODE_H_ATTRS):
+    othermode_h |= getattr(gbi, getattr(f3d_mat.rdp_settings, attr))
+  othermode_h |= getattr(gbi, get_textlut_mode(f3d_mat))
+  f64mat.geo_mode, f64mat.othermode_l, f64mat.othermode_h = geo_mode, othermode_l, othermode_h
   
   if f3d_mat.draw_layer.oot == 'Transparent' or f3d_mat.draw_layer.sm64 in ['5', '6','7']:
     f64mat.queue = 1
 
-  if f3d_mat.rdp_settings.zmode == 'ZMODE_DEC':
+  if f3d_mat.draw_layer.sm64 in ['2', '6'] or f3d_mat.rdp_settings.zmode == 'ZMODE_DEC':
     f64mat.flags |= DRAW_FLAG_DECAL
 
   if not f3d_mat.rdp_settings.z_cmp:

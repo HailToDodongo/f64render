@@ -39,6 +39,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.shader = None
     self.shader_fallback = None
     self.draw_handler = None
+    self.last_ucode = None
         
     self.depth_texture: gpu.types.GPUTexture = None
     self.update_render_size(128, 128)
@@ -53,8 +54,11 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     if not self.depth_texture or size_x != self.depth_texture.width or size_y != self.depth_texture.height:
       self.depth_texture = gpu.types.GPUTexture((size_x, size_y), format='R32I')
 
+
   def init_shader(self):
-    if not self.shader:
+    if not self.shader or self.last_ucode != bpy.context.scene.f3d_type:
+      print("Compiling shader")
+
       shaderPath = (pathlib.Path(__file__).parent / "shader").resolve()
       shaderVert = ""
       shaderFrag = ""
@@ -66,6 +70,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
       with open(shaderPath / "defines.glsl", "r", encoding="utf-8") as f:
         shaderDef = f.read()
+        if bpy.context.scene.f3d_type == "F3DEX3":
+          shaderDef += "\n#define F3DEX3 1\n"
         shaderVert += shaderDef
         shaderFrag += shaderDef
 
@@ -91,14 +97,21 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.smooth("VEC3", "cc_ck_scale")
       vert_out.smooth("FLOAT", "cc_k4")
       vert_out.smooth("FLOAT", "cc_k5")
+      vert_out.smooth("VEC2", "primDepth")
       vert_out.smooth("VEC4", "uv")
       vert_out.no_perspective("VEC2", "posScreen")
       vert_out.flat("VEC4", "tileSize")
       vert_out.flat("INT", "flags")
+      vert_out.flat("INT", "geoMode")
+      vert_out.flat("INT", "othermodeL")
+      vert_out.flat("INT", "othermodeH")
 
       shader_info.push_constant("MAT4", "matMVP")
       shader_info.push_constant("MAT3", "matNorm")
       shader_info.push_constant("INT", "inFlags")
+      shader_info.push_constant("INT", "inGeoMode")
+      shader_info.push_constant("INT", "inOthermodeL")
+      shader_info.push_constant("INT", "inOthermodeH")
       
       shader_info.uniform_buf(0, "UBO_CCData", "ccData")
       shader_info.uniform_buf(1, "UBO_CCConf", "ccConf")
@@ -120,6 +133,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       
       self.shader = gpu.shader.create_from_info(shader_info)      
       self.shader_fallback = gpu.shader.from_builtin('UNIFORM_COLOR')
+      self.last_ucode = bpy.context.scene.f3d_type
 
   def mesh_change_listener(scene, depsgraph):
     global f64render_meshCache
@@ -220,7 +234,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             renderObj.indices
           )
 
-          renderObj.cc_data = [np.zeros(4*12, dtype=np.float32)] * mat_count
+          renderObj.cc_data = [np.zeros(4*13, dtype=np.float32)] * mat_count
           renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
 
           renderObj.ubo_cc_data = [None] * mat_count
@@ -282,6 +296,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_int("inFlags", f64mat.flags)
+          self.shader.uniform_int("inGeoMode", f64mat.geo_mode)
+          self.shader.uniform_int("inOthermodeL", f64mat.othermode_l)
+          self.shader.uniform_int("inOthermodeH", f64mat.othermode_h)
 
           cc_data = renderObj.cc_data[mat_idx]
           cc_data[0:4] = f64mat.color_light if f64mat.set_light else lightColor0
@@ -292,9 +309,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           cc_data[20:24] = f64mat.color_env     if f64mat.set_env         else lastEnvColor
           cc_data[24:28] = f64mat.color_ambient if f64mat.set_ambient     else ambientColor
           cc_data[28:36] = f64mat.ck            if f64mat.set_ck          else last_ck
-          cc_data[36:38] = f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod
-          cc_data[38:44] = f64mat.convert       if f64mat.set_convert     else last_convert
-          cc_data[44] = f64mat.alphaClip # 0.75
+          cc_data[36:38] = f64mat.prim_depth
+          cc_data[38:40] = f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod
+          cc_data[40:46] = f64mat.convert       if f64mat.set_convert     else last_convert
+          cc_data[46] = f64mat.alphaClip # 0.75
 
           if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
           if f64mat.set_env: lastEnvColor = f64mat.color_env

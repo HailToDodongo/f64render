@@ -10,8 +10,11 @@ vec3 linearToGamma(in vec3 color)
   return pow(color, vec3(1.0 / GAMMA_FACTOR));
 }
 
-#define flagSelect(flag_mask, a, b) (mix(a, b, float( (flags & flag_mask) != 0 )))
-
+#define mixSelect(amount, a, b) (mix(a, b, float(amount)))
+#define flagSelect(flag_mask, a, b) (mixSelect((flags & flag_mask) != 0, a, b))
+#define geoModeSelect(flag_mask, a, b) (mixSelect((geoMode & flag_mask) != 0, a, b))
+#define othermodeHSelect(flag_mask, a, b) mixSelect((othermodeH & flag_mask) != 0, a, b)
+#define usePrimDepth() (othermodeL & (1 << G_MDSFT_ZSRCSEL)) == G_ZS_PRIM
 float noise(in vec2 uv)
 {
   return fract(sin(dot(uv, vec2(12.9898, 78.233)))* 43758.5453);

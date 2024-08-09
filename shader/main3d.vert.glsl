@@ -5,18 +5,26 @@ void main()
   vec3 norm = inNormal;
   vec3 normScreen = normalize(matNorm * norm);
 
+  cc_shade = inColor;
+  flags = inFlags;
+  geoMode = inGeoMode;
+  othermodeL = inOthermodeL;
+  othermodeH = inOthermodeH;
+
   vec4 lightTotal = vec4(ccData.ambientColor.rgb, 0.0);
   for(int i=0; i<2; ++i) {
     float lightStren = max(dot(norm, ccData.lightDir[i].xyz), 0.0);
     lightTotal += ccData.lightColor[i] * (lightStren * 2);
   }
 
-  lightTotal = clamp(lightTotal, 0.0, 1.0);
-  
-  // Ambient light
-  cc_shade.rgb = linearToGamma(lightTotal.rgb);
+  lightTotal.rgb = linearToGamma(clamp(lightTotal.rgb, 0.0, 1.0));
+
+#if defined(F3DEX3)
+  cc_shade.rgb = geoModeSelect(G_LIGHTING, cc_shade.rgb, geoModeSelect(G_PACKED_NORMALS, lightTotal.rgb, cc_shade.rgb * lightTotal.rgb));
+#else
+  cc_shade.rgb = geoModeSelect(G_LIGHTING, cc_shade.rgb, lightTotal.rgb);
+#endif
   cc_shade.a = 1.0;
-  cc_shade *= inColor;
   cc_shade_flat = cc_shade;
 
   cc_env.rgb = linearToGamma(ccData.env.rgb);
@@ -28,9 +36,9 @@ void main()
   cc_ck_scale = ccData.ck_scale.rgb;
   cc_k4 = ccData.k4;
   cc_k5 = ccData.k5;
+  primDepth = ccData.primDepth;
 
-  flags = inFlags;
-  vec2 uvGen = flagSelect(DRAW_FLAG_UVGEN_SPHERE, inUV, normScreen.xy * 0.5 + 0.5);
+  vec2 uvGen = geoModeSelect(G_TEX_GEN, inUV, normScreen.xy * 0.5 + 0.5);
 
   // turn UVs ionto pixel-space, apply first tile settings
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0));
