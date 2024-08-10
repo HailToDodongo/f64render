@@ -1,4 +1,5 @@
 import math
+import struct
 import bpy
 import mathutils
 import gpu
@@ -14,9 +15,12 @@ from .mesh.mesh import MeshBuffers, mesh_to_buffers
 f64render_materials_dirty = True
 f64render_instance = None
 f64render_meshCache: dict[MeshBuffers] = {}
+current_ucode = None
 
 # N64 is y-up, blender is z-up
 yup_to_zup = mathutils.Quaternion((1, 0, 0), math.radians(90.0)).to_matrix().to_4x4()
+
+UNIFORM_BUFFER_STRUCT = struct.Struct(f"4f 4f 3f i 3f i 4f 4f 4f 8f 2f 6f 2f i i i f")
 
 def cache_del_by_mesh(mesh_name):
   global f64render_meshCache
@@ -42,6 +46,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.shader = None
     self.shader_fallback = None
     self.draw_handler = None
+    self.last_ucode = None
         
     self.depth_texture: gpu.types.GPUTexture = None
     self.update_render_size(128, 128)
@@ -58,6 +63,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
   def init_shader(self):
     if not self.shader:
+      print("Compiling shader")
+
       shaderPath = (pathlib.Path(__file__).parent / "shader").resolve()
       shaderVert = ""
       shaderFrag = ""
@@ -87,13 +94,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out = gpu.types.GPUStageInterfaceInfo("vert_interface")
       vert_out.no_perspective("VEC4", "cc_shade")
       vert_out.flat("VEC4", "cc_shade_flat")
-      vert_out.smooth("VEC4", "cc_env")
-      vert_out.smooth("VEC4", "cc_prim_color")
-      vert_out.smooth("FLOAT", "cc_prim_lod_frac")
-      vert_out.smooth("VEC3", "cc_ck_center")
-      vert_out.smooth("VEC3", "cc_ck_scale")
-      vert_out.smooth("FLOAT", "cc_k4")
-      vert_out.smooth("FLOAT", "cc_k5")
       vert_out.smooth("VEC4", "uv")
       vert_out.no_perspective("VEC2", "posScreen")
       vert_out.flat("VEC4", "tileSize")
@@ -101,8 +101,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
       shader_info.push_constant("MAT4", "matMVP")
       shader_info.push_constant("MAT3", "matNorm")
+      # TODO: move properties into one big uniform buffer
       shader_info.push_constant("INT", "inFlags")
-      
+
       shader_info.uniform_buf(0, "UBO_CCData", "ccData")
       shader_info.uniform_buf(1, "UBO_CCConf", "ccConf")
       shader_info.uniform_buf(2, "UBO_TileConf", "tileConf")
@@ -127,7 +128,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
   def mesh_change_listener(scene, depsgraph):
     global f64render_meshCache
     global f64render_materials_dirty
+    global current_ucode
     # print("################ MESH CHANGE LISTENER ################")  
+
+    if depsgraph.id_type_updated('SCENE'):
+      if current_ucode != depsgraph.scene.f3d_type:
+        f64render_materials_dirty = True
+        current_ucode = depsgraph.scene.f3d_type
 
     if depsgraph.id_type_updated('MATERIAL'):
       for update in depsgraph.updates:
@@ -224,7 +231,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             renderObj.indices
           )
 
-          renderObj.cc_data = [np.zeros(4*12, dtype=np.float32)] * mat_count
+          renderObj.cc_data = [bytes(52 * 4)] * mat_count
           renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
 
           renderObj.ubo_cc_data = [None] * mat_count
@@ -290,18 +297,25 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_int("inFlags", f64mat.flags)
 
-          cc_data = renderObj.cc_data[mat_idx]
-          cc_data[0:4] = f64mat.color_light if f64mat.set_light else lightColor0
-          cc_data[4:8] = lightColor1
-          cc_data[8:11] = lightDir0
-          cc_data[12:15] = lightDir1
-          cc_data[16:20] = f64mat.color_prim    if f64mat.set_prim        else lastPrimColor
-          cc_data[20:24] = f64mat.color_env     if f64mat.set_env         else lastEnvColor
-          cc_data[24:28] = f64mat.color_ambient if f64mat.set_ambient     else ambientColor
-          cc_data[28:36] = f64mat.ck            if f64mat.set_ck          else last_ck
-          cc_data[36:38] = f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod
-          cc_data[38:44] = f64mat.convert       if f64mat.set_convert     else last_convert
-          cc_data[44] = f64mat.alphaClip
+          renderObj.cc_data[mat_idx] = UNIFORM_BUFFER_STRUCT.pack(
+            *(f64mat.color_light if f64mat.set_light      else lightColor0),
+            *lightColor1,
+            *lightDir0,
+            0,
+            *lightDir1,
+            0,
+            *(f64mat.color_prim    if f64mat.set_prim     else lastPrimColor),
+            *(f64mat.color_env     if f64mat.set_env      else lastEnvColor),
+            *(f64mat.color_ambient if f64mat.set_ambient  else ambientColor),
+            *(f64mat.ck            if f64mat.set_ck       else last_ck),
+            *(f64mat.lod_prim      if f64mat.set_prim     else last_prim_lod),
+            *(f64mat.convert       if f64mat.set_convert  else last_convert),
+            *f64mat.prim_depth,
+            f64mat.geo_mode,
+            f64mat.othermode_l,
+            f64mat.othermode_h,
+            f64mat.alphaClip
+          )
 
           if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
           if f64mat.set_env: lastEnvColor = f64mat.color_env

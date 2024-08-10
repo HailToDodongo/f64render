@@ -11,6 +11,8 @@ struct UBO_CCData
   vec4 ck_scale;
   float prim_lod_min, prim_lod_frac;
   float k0, k1, k2, k3, k4, k5;
+  vec2 primDepth;
+  int geoMode, othermodeL, othermodeH;
   float alphaClip;
 };
 
