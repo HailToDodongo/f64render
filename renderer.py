@@ -61,7 +61,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     if not self.depth_texture or size_x != self.depth_texture.width or size_y != self.depth_texture.height:
       self.depth_texture = gpu.types.GPUTexture((size_x, size_y), format='R32I')
 
-
   def init_shader(self):
     if not self.shader:
       print("Compiling shader")
