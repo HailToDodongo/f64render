@@ -14,7 +14,10 @@ vec3 linearToGamma(in vec3 color)
 #define flagSelect(flag_mask, a, b) (mixSelect((flags & flag_mask) != 0, a, b))
 #define geoModeSelect(flag_mask, a, b) (mixSelect((ccData.geoMode & flag_mask) != 0, a, b))
 #define othermodeHSelect(flag_mask, a, b) mixSelect((ccData.othermodeH & flag_mask) != 0, a, b)
-#define usePrimDepth() (ccData.othermodeL & (1 << G_MDSFT_ZSRCSEL)) == G_ZS_PRIM
+
+#define zSource() (ccData.othermodeL & (1 << G_MDSFT_ZSRCSEL))
+#define texFilter() (ccData.othermodeH & (2 << G_MDSFT_TEXTFILT))
+
 float noise(in vec2 uv)
 {
   return fract(sin(dot(uv, vec2(12.9898, 78.233)))* 43758.5453);

@@ -314,8 +314,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           cc_data += to_flist(f64mat.convert       if f64mat.set_convert     else last_convert)
           cc_data += to_flist(f64mat.prim_depth)
           cc_data += to_int(f64mat.geo_mode)
-          cc_data += to_int(f64mat.othermode_h)
           cc_data += to_int(f64mat.othermode_l)
+          cc_data += to_int(f64mat.othermode_h)
           cc_data += to_float(f64mat.alphaClip)
           renderObj.cc_data[mat_idx] = cc_data
 

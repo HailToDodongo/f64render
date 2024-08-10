@@ -110,7 +110,7 @@ void main()
   vec4 texData0, texData1;
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0)) - 1;
 
-  if((ccData.othermodeH & G_TF_BILERP) != 0)
+  if(texFilter() == G_TF_BILERP)
   {
     fetchTex01Filtered(texSize, texData0, texData1);
   } else {
@@ -169,13 +169,13 @@ void main()
   // leading to culled faces writing their color values even though a new triangles has a closer depth value already written.
   ivec2 screenPosPixel = ivec2(gl_FragCoord.xy);
 
-  int currDepth = int(mixSelect(usePrimDepth(), gl_FragCoord.w * 0xFFFFF, primDepth.x));
+  int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, primDepth.x));
   int writeDepth = int(flagSelect(DRAW_FLAG_DECAL, currDepth, -0xFFFFFF));
 
   beginInvocationInterlockARB();
   {
     int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
-    int depthDiff = int(mixSelect(usePrimDepth(), abs(oldDepth - currDepth), primDepth.y));
+    int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), primDepth.y));
 
     if((flags & DRAW_FLAG_DECAL) != 0 && depthDiff > DECAL_DEPTH_DELTA) {
       discard;
