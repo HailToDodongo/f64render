@@ -95,12 +95,25 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   else:
     colors.fill(1.0)
 
+  # create map of hidden polygons (we need to map that to triangles)
+  poly_hidden = np.empty(len(mesh.polygons), dtype=np.int32)
+  mesh.polygons.foreach_get('hide', poly_hidden)
+
+  tri_hidden = np.empty(len(mesh.loop_triangles), dtype=np.int32)
+  mesh.loop_triangles.foreach_get('polygon_index', tri_hidden)
+  tri_hidden = poly_hidden[tri_hidden]
+
   # create index buffers for the mesh by material, the data behind it is unindexed
   # this is done to do a cheap split by material
   mat_count = len(mesh.materials)
+
   mesh.loop_triangles.foreach_get('material_index', use_flat) # materials, e.g.: [0, 1, 0, 1, 2, 1, ...]
   index_array = np.arange(num_corners, dtype=np.int32) # -> [0, 1, 2, 3, 4, 5, ...]
   index_array = index_array.reshape((-1, 3))           # -> [[0, 1, 2], [3, 4, 5], ...]
+
+  # remove faces based on 'tri_hidden' (0=visible, 1=hidden)
+  index_array = index_array[tri_hidden == 0]
+  use_flat = use_flat[tri_hidden == 0]
   
   index_array = index_array[np.argsort(use_flat)] # sort index_array by value in use_flat (aka material-index)
   index_offsets = np.bincount(use_flat, minlength=mat_count)    # now get counts of each material, e.g.: [1, 2] where index is material-index
