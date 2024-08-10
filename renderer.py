@@ -215,7 +215,11 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         # Mesh not cached: parse & convert mesh data, then prepare a GPU batch
         if meshID not in f64render_meshCache:
           # print("    -> Update object", meshID)
-          mesh = obj.evaluated_get(depsgraph).to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+          if obj.mode == 'EDIT':
+            mesh = obj.evaluated_get(depsgraph).to_mesh()
+          else:
+            mesh = obj.evaluated_get(depsgraph).to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+
           renderObj = f64render_meshCache[meshID] = mesh_to_buffers(mesh)
           renderObj.mesh_name = obj.data.name
 
