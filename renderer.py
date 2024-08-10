@@ -202,7 +202,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     fallback_objs = []
     for obj in depsgraph.objects:
-      if obj.type in {"MESH", "CURVE", "SURFACE", "FONT"}:
+      if obj.type in {"MESH", "CURVE", "SURFACE", "FONT"} and obj.data is not None:
 
         meshID = obj.name + "#" + obj.data.name
 
@@ -253,6 +253,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     #for obj in object_queue[0] + object_queue[1]:
     for layer in range(2):
       for obj in depsgraph.objects:
+        if obj.data is None: continue
         # Handle "Local View" (pressing '/')
         if space_view_3d.local_view and not obj.local_view_get(space_view_3d): continue
   
