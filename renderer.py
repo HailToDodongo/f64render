@@ -142,13 +142,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         f64render_materials_dirty = True
       return
 
-    if not depsgraph.id_type_updated('MESH'):
-       return
-
-    # This causes the actual object mesh to update after leaving edit-mode
-    for update in depsgraph.updates:
-      if isinstance(update.id, bpy.types.Mesh):
-        cache_del_by_mesh(update.id.name)
+    if depsgraph.id_type_updated('OBJECT'):
+      for update in depsgraph.updates:
+        if isinstance(update.id, bpy.types.Object) and update.id.type in {"MESH", "CURVE", "SURFACE", "FONT"}:
+          cache_del_by_mesh(update.id.data.name)
 
   def view_update(self, context, depsgraph):
     if self.draw_handler is None:
@@ -205,7 +202,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     fallback_objs = []
     for obj in depsgraph.objects:
-      if obj.type == 'MESH':
+      if obj.type in {"MESH", "CURVE", "SURFACE", "FONT"}:
 
         meshID = obj.name + "#" + obj.data.name
 
@@ -218,7 +215,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         # Mesh not cached: parse & convert mesh data, then prepare a GPU batch
         if meshID not in f64render_meshCache:
           # print("    -> Update object", meshID)
-          mesh = obj.evaluated_get(depsgraph).to_mesh()
+          mesh = obj.evaluated_get(depsgraph).to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
           renderObj = f64render_meshCache[meshID] = mesh_to_buffers(mesh)
           renderObj.mesh_name = obj.data.name
 
@@ -256,13 +253,12 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     #for obj in object_queue[0] + object_queue[1]:
     for layer in range(2):
       for obj in depsgraph.objects:
-        if obj.type != 'MESH': continue
-
         # Handle "Local View" (pressing '/')
         if space_view_3d.local_view and not obj.local_view_get(space_view_3d): continue
-
-        # print("  -> Draw object", meshID)
+  
         meshID = obj.name + "#" + obj.data.name
+        if meshID not in f64render_meshCache: continue
+        # print("  -> Draw object", meshID)
         renderObj: MeshBuffers = f64render_meshCache[meshID]
 
         modelview_matrix = obj.matrix_world
