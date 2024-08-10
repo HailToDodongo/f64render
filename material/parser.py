@@ -135,22 +135,23 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
         f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
 
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
+  from fast64_internal.utility import s_rgb_alpha_1_tuple
   from fast64_internal.f3d.f3d_material import all_combiner_uses
   cc_uses = all_combiner_uses(f3d_mat)
 
   f64mat = F64Material(
-     color_prim = list(f3d_mat.prim_color),
+     color_prim = s_rgb_alpha_1_tuple(f3d_mat.prim_color),
      lod_prim   = [f3d_mat.prim_lod_min, f3d_mat.prim_lod_frac],
      prim_depth = [f3d_mat.rdp_settings.prim_depth.z, f3d_mat.rdp_settings.prim_depth.dz],
      set_prim   = f3d_mat.set_prim and cc_uses['Primitive'],
-     color_env  = list(f3d_mat.env_color),
+     color_env  = s_rgb_alpha_1_tuple(f3d_mat.env_color),
      set_env    = f3d_mat.set_env and cc_uses['Environment'],
-     ck         = list(f3d_mat.key_center) + list(f3d_mat.key_scale) + [0.0], # alpha goes unused, but fixes alignement
+     ck         = tuple((*s_rgb_alpha_1_tuple(f3d_mat.key_center), *f3d_mat.key_scale, 0)), # extra 0 for alignment
      set_ck     = f3d_mat.set_key and cc_uses['Key'],
      convert    = [getattr(f3d_mat, f"k{i}") for i in range(0, 6)],
      set_convert= f3d_mat.set_k0_5 and cc_uses['Convert'],
-     color_ambient = list(f3d_mat.ambient_light_color),
-     color_light = list(f3d_mat.default_light_color),
+     color_ambient = s_rgb_alpha_1_tuple(f3d_mat.ambient_light_color),
+     color_light = s_rgb_alpha_1_tuple(f3d_mat.default_light_color),
      set_ambient = f3d_mat.set_lights,
      set_light   = f3d_mat.set_lights, # shared flag
 

@@ -11,27 +11,16 @@ void main()
   vec4 lightTotal = vec4(ccData.ambientColor.rgb, 0.0);
   for(int i=0; i<2; ++i) {
     float lightStren = max(dot(norm, ccData.lightDir[i].xyz), 0.0);
-    lightTotal += ccData.lightColor[i] * (lightStren * 2);
+    lightTotal += ccData.lightColor[i] * lightStren;
   }
 
-  lightTotal.rgb = linearToGamma(clamp(lightTotal.rgb, 0.0, 1.0));
+  lightTotal.rgb = clamp(lightTotal.rgb, 0.0, 1.0);
 
   vec3 shadeWithLight = geoModeSelect(G_PACKED_NORMALS, lightTotal.rgb, cc_shade.rgb * lightTotal.rgb);
   cc_shade.rgb = geoModeSelect(G_LIGHTING, cc_shade.rgb, shadeWithLight);
   cc_shade = clamp(cc_shade, 0.0, 1.0);
   cc_shade.a = 1.0;
   cc_shade_flat = cc_shade;
-
-  cc_env.rgb = linearToGamma(ccData.env.rgb);
-  cc_prim_color.rgb = linearToGamma(ccData.prim_color.rgb);
-  cc_env.a = ccData.env.a;
-  cc_prim_color.a = ccData.prim_color.a;
-  cc_prim_lod_frac = ccData.prim_lod_frac;
-  cc_ck_center = linearToGamma(ccData.ck_center.rgb);
-  cc_ck_scale = ccData.ck_scale.rgb;
-  cc_k4 = ccData.k4;
-  cc_k5 = ccData.k5;
-  primDepth = ccData.primDepth;
 
   vec2 uvGen = geoModeSelect(G_TEX_GEN, inUV, normScreen.xy * 0.5 + 0.5);
 

@@ -48,22 +48,22 @@ vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in
        if(val == CC_C_COMB       ) return comb.rgb;
   else if(val == CC_C_TEX0       ) return texData0.rgb;
   else if(val == CC_C_TEX1       ) return texData1.rgb;
-  else if(val == CC_C_PRIM       ) return cc_prim_color.rgb;
+  else if(val == CC_C_PRIM       ) return ccData.prim_color.rgb;
   else if(val == CC_C_SHADE      ) return shade.rgb;
-  else if(val == CC_C_ENV        ) return cc_env.rgb;
-  else if(val == CC_C_CENTER     ) return cc_ck_center;
-  else if(val == CC_C_SCALE      ) return cc_ck_scale;
+  else if(val == CC_C_ENV        ) return ccData.env.rgb;
+  else if(val == CC_C_CENTER     ) return ccData.ck_center.rgb;
+  else if(val == CC_C_SCALE      ) return ccData.ck_scale.rgb;
   else if(val == CC_C_COMB_ALPHA ) return comb.aaa;
   else if(val == CC_C_TEX0_ALPHA ) return texData0.aaa;
   else if(val == CC_C_TEX1_ALPHA ) return texData1.aaa;
-  else if(val == CC_C_PRIM_ALPHA ) return cc_prim_color.aaa;
+  else if(val == CC_C_PRIM_ALPHA ) return ccData.prim_color.aaa;
   else if(val == CC_C_SHADE_ALPHA) return shade.aaa;
-  else if(val == CC_C_ENV_ALPHA  ) return cc_env.aaa;
+  else if(val == CC_C_ENV_ALPHA  ) return ccData.env.aaa;
   // else if(val == CC_C_LOD_FRAC   ) return vec3(0.0); // @TODO
-  else if(val == CC_C_PRIM_LOD_FRAC) return vec3(cc_prim_lod_frac);
+  else if(val == CC_C_PRIM_LOD_FRAC) return vec3(ccData.prim_lod_frac);
   else if(val == CC_C_NOISE      ) return vec3(noise(posScreen*0.25));
-  else if(val == CC_C_K4         ) return vec3(cc_k4);
-  else if(val == CC_C_K5         ) return vec3(cc_k5);
+  else if(val == CC_C_K4         ) return vec3(ccData.k4);
+  else if(val == CC_C_K5         ) return vec3(ccData.k5);
   else if(val == CC_C_1          ) return vec3(1.0);
   return vec3(0.0); // default: CC_C_0
 }
@@ -73,11 +73,11 @@ float cc_fetchAlpha(in int val, vec4 shade, in vec4 comb, in vec4 texData0, in v
        if(val == CC_A_COMB ) return comb.a;
   else if(val == CC_A_TEX0 ) return texData0.a;
   else if(val == CC_A_TEX1 ) return texData1.a;
-  else if(val == CC_A_PRIM ) return cc_prim_color.a;
+  else if(val == CC_A_PRIM ) return ccData.prim_color.a;
   else if(val == CC_A_SHADE) return shade.a;
-  else if(val == CC_A_ENV  ) return cc_env.a;
+  else if(val == CC_A_ENV  ) return ccData.env.a;
   // else if(val == CC_A_LOD_FRAC) return 0.0; // @TODO
-  else if(val == CC_A_PRIM_LOD_FRAC) return cc_prim_lod_frac;
+  else if(val == CC_A_PRIM_LOD_FRAC) return ccData.prim_lod_frac;
   else if(val == CC_A_1    ) return 1.0;
   return 0.0; // default: CC_A_0
 }
@@ -169,13 +169,13 @@ void main()
   // leading to culled faces writing their color values even though a new triangles has a closer depth value already written.
   ivec2 screenPosPixel = ivec2(gl_FragCoord.xy);
 
-  int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, primDepth.x));
+  int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, ccData.primDepth.x));
   int writeDepth = int(flagSelect(DRAW_FLAG_DECAL, currDepth, -0xFFFFFF));
 
   beginInvocationInterlockARB();
   {
     int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
-    int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), primDepth.y));
+    int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), ccData.primDepth.y));
 
     if((flags & DRAW_FLAG_DECAL) != 0 && depthDiff > DECAL_DEPTH_DELTA) {
       discard;
