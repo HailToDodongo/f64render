@@ -15,11 +15,12 @@ from .mesh.mesh import MeshBuffers, mesh_to_buffers
 f64render_materials_dirty = True
 f64render_instance = None
 f64render_meshCache: dict[MeshBuffers] = {}
+current_ucode = None
 
 # N64 is y-up, blender is z-up
 yup_to_zup = mathutils.Quaternion((1, 0, 0), math.radians(90.0)).to_matrix().to_4x4()
 
-UNIFORM_BUFFER_STRUCT_PACK = f"4f 4f 3f i 3f i 4f 4f 4f 8f 2f 6f 2f i i i f"
+UNIFORM_BUFFER_STRUCT = struct.Struct(f"4f 4f 3f i 3f i 4f 4f 4f 8f 2f 6f 2f i i i f")
 
 def cache_del_by_mesh(mesh_name):
   global f64render_meshCache
@@ -109,6 +110,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
       shader_info.push_constant("MAT4", "matMVP")
       shader_info.push_constant("MAT3", "matNorm")
+      # TODO: move properties into one big uniform buffer
       shader_info.push_constant("INT", "inFlags")
 
       shader_info.uniform_buf(0, "UBO_CCData", "ccData")
@@ -135,7 +137,13 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
   def mesh_change_listener(scene, depsgraph):
     global f64render_meshCache
     global f64render_materials_dirty
+    global current_ucode
     # print("################ MESH CHANGE LISTENER ################")  
+
+    if depsgraph.id_type_updated('SCENE'):
+      if current_ucode != depsgraph.scene.f3d_type:
+        f64render_materials_dirty = True
+        current_ucode = depsgraph.scene.f3d_type
 
     if depsgraph.id_type_updated('MATERIAL'):
       for update in depsgraph.updates:
@@ -294,15 +302,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_int("inFlags", f64mat.flags)
 
-          def to_flist(v: list[float]):
-            return struct.pack(f"{len(v)}f", *v)
-          def to_float(v: float):
-            return struct.pack("f", v)
-          def to_int(v: list[int]):
-            return struct.pack("i", v)
-
-          renderObj.cc_data[mat_idx] = struct.pack(
-            UNIFORM_BUFFER_STRUCT_PACK,
+          renderObj.cc_data[mat_idx] = UNIFORM_BUFFER_STRUCT.pack(
             *(f64mat.color_light if f64mat.set_light      else lightColor0),
             *lightColor1,
             *lightDir0,

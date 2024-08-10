@@ -167,7 +167,10 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   from fast64_internal.f3d.f3d_material import get_textlut_mode
   gbi = get_F3D_GBI()
   geo_mode = othermode_l = othermode_h = 0
+  # TODO: use geo_modes_in_ucode (T3D UI pr) to check if the geo mode exists in the current ucode
   for i, attr in enumerate(GEO_MODE_ATTRS):
+    if not getattr(gbi, attr.upper().replace("G_TEX_GEN", "G_TEXTURE_GEN").replace("G_SHADE_SMOOTH", "G_SHADING_SMOOTH"), False):
+      continue
     geo_mode |= int(getattr(f3d_mat.rdp_settings, attr)) << i
   for i, attr in enumerate(OTHERMODE_L_ATTRS):
     othermode_l |= getattr(gbi, getattr(f3d_mat.rdp_settings, attr))
