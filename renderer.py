@@ -1,4 +1,5 @@
 import math
+import struct
 import bpy
 import mathutils
 import gpu
@@ -228,7 +229,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             renderObj.indices
           )
 
-          renderObj.cc_data = [np.zeros(4*13, dtype=np.float32)] * mat_count
+          renderObj.cc_data = [bytes(52 * 4)] * mat_count
           renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
 
           renderObj.ubo_cc_data = [None] * mat_count
@@ -291,22 +292,32 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_int("inFlags", f64mat.flags)
 
-          cc_data = renderObj.cc_data[mat_idx]
-          cc_data[0:4] = f64mat.color_light if f64mat.set_light else lightColor0
-          cc_data[4:8] = lightColor1
-          cc_data[8:11] = lightDir0
-          cc_data[12:15] = lightDir1
-          cc_data[16:20] = f64mat.color_prim    if f64mat.set_prim        else lastPrimColor
-          cc_data[20:24] = f64mat.color_env     if f64mat.set_env         else lastEnvColor
-          cc_data[24:28] = f64mat.color_ambient if f64mat.set_ambient     else ambientColor
-          cc_data[28:36] = f64mat.ck            if f64mat.set_ck          else last_ck
-          cc_data[36:38] = f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod
-          cc_data[38:44] = f64mat.convert       if f64mat.set_convert     else last_convert
-          cc_data[44:46] = f64mat.prim_depth
-          cc_data[46] = f64mat.geo_mode
-          cc_data[47] = f64mat.othermode_h
-          cc_data[48] = f64mat.othermode_l
-          cc_data[49] = f64mat.alphaClip
+          def to_flist(v: list[float]):
+            return struct.pack(f"{len(v)}f", *v)
+          def to_float(v: float):
+            return struct.pack("f", v)
+          def to_int(v: list[int]):
+            return struct.pack("i", v)
+
+          cc_data = bytes()
+          cc_data += to_flist(f64mat.color_light if f64mat.set_light else lightColor0)
+          cc_data += to_flist(lightColor1)
+          cc_data += to_flist(lightDir0)
+          cc_data += bytes(4) # padding
+          cc_data += to_flist(lightDir1)
+          cc_data += bytes(4) # padding
+          cc_data += to_flist(f64mat.color_prim    if f64mat.set_prim        else lastPrimColor)
+          cc_data += to_flist(f64mat.color_env     if f64mat.set_env         else lastEnvColor)
+          cc_data += to_flist(f64mat.color_ambient if f64mat.set_ambient     else ambientColor)
+          cc_data += to_flist(f64mat.ck            if f64mat.set_ck          else last_ck)
+          cc_data += to_flist(f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod)
+          cc_data += to_flist(f64mat.convert       if f64mat.set_convert     else last_convert)
+          cc_data += to_flist(f64mat.prim_depth)
+          cc_data += to_int(f64mat.geo_mode)
+          cc_data += to_int(f64mat.othermode_h)
+          cc_data += to_int(f64mat.othermode_l)
+          cc_data += to_float(f64mat.alphaClip)
+          renderObj.cc_data[mat_idx] = cc_data
 
           if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
           if f64mat.set_env: lastEnvColor = f64mat.color_env
