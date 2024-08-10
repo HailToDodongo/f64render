@@ -1,6 +1,3 @@
-// Following defines are defined during init_shader
-// #define F3DEX3 1
-
 // CC Color inputs
 #define CC_C_0             0
 #define CC_C_1             1

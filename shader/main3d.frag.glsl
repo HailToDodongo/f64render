@@ -96,8 +96,6 @@ vec4 cc_clampValue(in vec4 value)
 
 void main()
 {
-  if (((geoMode & G_CULL_BACK) != 0) && ((geoMode & G_CULL_FRONT) != 0)) discard;
-
   vec4 cc0[4]; // inputs for 1. cycle
   vec4 cc1[4]; // inputs for 2. cycle
   vec4 ccValue = vec4(0.0); // result after 1/2 cycle
@@ -112,7 +110,7 @@ void main()
   vec4 texData0, texData1;
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0)) - 1;
 
-  if((othermodeH & G_TF_BILERP) != 0)
+  if((ccData.othermodeH & G_TF_BILERP) != 0)
   {
     fetchTex01Filtered(texSize, texData0, texData1);
   } else {

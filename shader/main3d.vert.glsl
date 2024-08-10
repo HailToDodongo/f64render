@@ -7,9 +7,6 @@ void main()
 
   cc_shade = inColor;
   flags = inFlags;
-  geoMode = inGeoMode;
-  othermodeL = inOthermodeL;
-  othermodeH = inOthermodeH;
 
   vec4 lightTotal = vec4(ccData.ambientColor.rgb, 0.0);
   for(int i=0; i<2; ++i) {
@@ -19,11 +16,8 @@ void main()
 
   lightTotal.rgb = linearToGamma(clamp(lightTotal.rgb, 0.0, 1.0));
 
-#if defined(F3DEX3)
-  cc_shade.rgb = geoModeSelect(G_LIGHTING, cc_shade.rgb, geoModeSelect(G_PACKED_NORMALS, lightTotal.rgb, cc_shade.rgb * lightTotal.rgb));
-#else
-  cc_shade.rgb = geoModeSelect(G_LIGHTING, cc_shade.rgb, lightTotal.rgb);
-#endif
+  vec3 shadeWithLight = geoModeSelect(G_PACKED_NORMALS, lightTotal.rgb, cc_shade.rgb * lightTotal.rgb);
+  cc_shade.rgb = geoModeSelect(G_LIGHTING, cc_shade.rgb, shadeWithLight);
   cc_shade = clamp(cc_shade, 0.0, 1.0);
   cc_shade.a = 1.0;
   cc_shade_flat = cc_shade;
