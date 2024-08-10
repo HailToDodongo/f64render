@@ -19,6 +19,8 @@ f64render_meshCache: dict[MeshBuffers] = {}
 # N64 is y-up, blender is z-up
 yup_to_zup = mathutils.Quaternion((1, 0, 0), math.radians(90.0)).to_matrix().to_4x4()
 
+UNIFORM_BUFFER_STRUCT_PACK = f"4f 4f 3f i 3f i 4f 4f 4f 8f 2f 6f 2f i i i f"
+
 def cache_del_by_mesh(mesh_name):
   global f64render_meshCache
   for key in list(f64render_meshCache.keys()):
@@ -299,25 +301,26 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           def to_int(v: list[int]):
             return struct.pack("i", v)
 
-          cc_data = bytes()
-          cc_data += to_flist(f64mat.color_light if f64mat.set_light else lightColor0)
-          cc_data += to_flist(lightColor1)
-          cc_data += to_flist(lightDir0)
-          cc_data += bytes(4) # padding
-          cc_data += to_flist(lightDir1)
-          cc_data += bytes(4) # padding
-          cc_data += to_flist(f64mat.color_prim    if f64mat.set_prim        else lastPrimColor)
-          cc_data += to_flist(f64mat.color_env     if f64mat.set_env         else lastEnvColor)
-          cc_data += to_flist(f64mat.color_ambient if f64mat.set_ambient     else ambientColor)
-          cc_data += to_flist(f64mat.ck            if f64mat.set_ck          else last_ck)
-          cc_data += to_flist(f64mat.lod_prim      if f64mat.set_prim        else last_prim_lod)
-          cc_data += to_flist(f64mat.convert       if f64mat.set_convert     else last_convert)
-          cc_data += to_flist(f64mat.prim_depth)
-          cc_data += to_int(f64mat.geo_mode)
-          cc_data += to_int(f64mat.othermode_l)
-          cc_data += to_int(f64mat.othermode_h)
-          cc_data += to_float(f64mat.alphaClip)
-          renderObj.cc_data[mat_idx] = cc_data
+          renderObj.cc_data[mat_idx] = struct.pack(
+            UNIFORM_BUFFER_STRUCT_PACK,
+            *(f64mat.color_light if f64mat.set_light      else lightColor0),
+            *lightColor1,
+            *lightDir0,
+            0,
+            *lightDir1,
+            0,
+            *(f64mat.color_prim    if f64mat.set_prim     else lastPrimColor),
+            *(f64mat.color_env     if f64mat.set_env      else lastEnvColor),
+            *(f64mat.color_ambient if f64mat.set_ambient  else ambientColor),
+            *(f64mat.ck            if f64mat.set_ck       else last_ck),
+            *(f64mat.lod_prim      if f64mat.set_prim     else last_prim_lod),
+            *(f64mat.convert       if f64mat.set_convert  else last_convert),
+            *f64mat.prim_depth,
+            f64mat.geo_mode,
+            f64mat.othermode_l,
+            f64mat.othermode_h,
+            f64mat.alphaClip
+          )
 
           if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
           if f64mat.set_env: lastEnvColor = f64mat.color_env
