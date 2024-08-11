@@ -52,6 +52,10 @@ DRAW_FLAG_TEX0_MONO    = (1 << 1)
 DRAW_FLAG_TEX1_MONO    = (1 << 2)
 DRAW_FLAG_DECAL        = (1 << 3)
 DRAW_FLAG_ALPHA_BLEND  = (1 << 4)
+DRAW_FLAG_TEX0_4BIT    = (1 << 5)
+DRAW_FLAG_TEX1_4BIT    = (1 << 6)
+DRAW_FLAG_TEX0_3BIT    = (1 << 7)
+DRAW_FLAG_TEX1_3BIT    = (1 << 8)
 
 @dataclass
 class F64Material:
@@ -196,11 +200,20 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
     f64mat.tex0Buff = gpu.texture.from_image(f3d_mat.tex0.tex)
     if f3d_mat.tex0.tex_format == 'I4' or f3d_mat.tex0.tex_format == 'I8':
       f64mat.flags |= DRAW_FLAG_TEX0_MONO
+    if f3d_mat.tex0.tex_format == 'I4' or f3d_mat.tex0.tex_format == 'IA8':
+      f64mat.flags |= DRAW_FLAG_TEX0_4BIT
+    if f3d_mat.tex0.tex_format == 'IA4':
+      f64mat.flags |= DRAW_FLAG_TEX0_3BIT
 
   if f3d_mat.tex1.tex:
     f64mat.tex1Buff = gpu.texture.from_image(f3d_mat.tex1.tex)
     if f3d_mat.tex1.tex_format == 'I4' or f3d_mat.tex1.tex_format == 'I8':
       f64mat.flags |= DRAW_FLAG_TEX1_MONO
+    if f3d_mat.tex1.tex_format == 'I4' or f3d_mat.tex1.tex_format == 'IA8':
+      f64mat.flags |= DRAW_FLAG_TEX1_4BIT
+    if f3d_mat.tex1.tex_format == 'IA4':
+      f64mat.flags |= DRAW_FLAG_TEX1_3BIT
+
 
   if f3d_mat.tex0.tex or f3d_mat.tex1.tex:
     f64mat.tile_conf = get_tile_conf(f3d_mat)

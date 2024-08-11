@@ -133,6 +133,10 @@
 #define DRAW_FLAG_TEX1_MONO    (1 << 2)
 #define DRAW_FLAG_DECAL        (1 << 3)
 #define DRAW_FLAG_ALPHA_BLEND  (1 << 4) // temporary, @TODO: proper blending emulation
+#define DRAW_FLAG_TEX0_4BIT    (1 << 5)
+#define DRAW_FLAG_TEX1_4BIT    (1 << 6)
+#define DRAW_FLAG_TEX0_3BIT    (1 << 7)
+#define DRAW_FLAG_TEX1_3BIT    (1 << 8)
 
 struct TileConf {
   vec2 mask;

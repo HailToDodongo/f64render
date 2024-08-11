@@ -5,6 +5,24 @@ layout(pixel_interlock_ordered) in;
 
 #define DECAL_DEPTH_DELTA 100
 
+vec4 quantize3Bit(in vec4 color) {
+  return vec4(round(color.rgb * 8.0) / 8.0, step(color.a, 0.5));
+}
+
+vec4 quantize4Bit(in vec4 color) {
+  return round(color * 16.0) / 16.0; // (16 seems more accurate than 15)
+}
+
+vec4 quantizeTexture0(vec4 color) {
+  vec4 colorQuant = flagSelect(DRAW_FLAG_TEX0_4BIT, color, quantize4Bit(color));
+  return flagSelect(DRAW_FLAG_TEX0_3BIT, colorQuant, quantize3Bit(colorQuant));
+}
+
+vec4 quantizeTexture1(vec4 color) {
+  vec4 colorQuant = flagSelect(DRAW_FLAG_TEX1_4BIT, color, quantize4Bit(color));
+  return flagSelect(DRAW_FLAG_TEX1_3BIT, colorQuant, quantize3Bit(colorQuant));
+}
+
 void fetchTex01Filtered(in ivec4 texSize, out vec4 texData0, out vec4 texData1)
 {
   // Original 3-point code taken from: https://www.shadertoy.com/view/Ws2fWV (By: cyrb)
@@ -34,13 +52,13 @@ void fetchTex01Filtered(in ivec4 texSize, out vec4 texData0, out vec4 texData1)
   vec2 lambda2 = abs((v0.xz * v2.yw - v2.xz * v0.yw) / den);
   vec2 lambda0 = 1.0 - lambda1 - lambda2;
 
-  texData0 = texelFetch(tex0, uv1.xy, 0) * lambda0.x
-            + texelFetch(tex0, uv0.xy, 0) * lambda1.x
-            + texelFetch(tex0, uv2.xy, 0) * lambda2.x;
+  texData0 =  quantizeTexture0(texelFetch(tex0, uv1.xy, 0)) * lambda0.x
+            + quantizeTexture0(texelFetch(tex0, uv0.xy, 0)) * lambda1.x
+            + quantizeTexture0(texelFetch(tex0, uv2.xy, 0)) * lambda2.x;
   
-  texData1 = texelFetch(tex1, uv1.zw, 0) * lambda0.y
-            + texelFetch(tex1, uv0.zw, 0) * lambda1.y
-            + texelFetch(tex1, uv2.zw, 0) * lambda2.y;
+  texData1 =  quantizeTexture1(texelFetch(tex1, uv1.zw, 0)) * lambda0.y
+            + quantizeTexture1(texelFetch(tex1, uv0.zw, 0)) * lambda1.y
+            + quantizeTexture1(texelFetch(tex1, uv2.zw, 0)) * lambda2.y;
 }
 
 vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in vec4 texData1)
@@ -124,8 +142,8 @@ void main()
     ivec4 uv0 = ivec4(floor(uv + 0.5));
     uv0 = wrappedMirror(texSize, uv0);
 
-    texData0 = texelFetch(tex0, uv0.xy, 0);
-    texData1 = texelFetch(tex1, uv0.zw, 0);
+    texData0 = quantizeTexture0(texelFetch(tex0, uv0.xy, 0));
+    texData1 = quantizeTexture0(texelFetch(tex1, uv0.zw, 0));
   }
 
   // handle I4/I8
