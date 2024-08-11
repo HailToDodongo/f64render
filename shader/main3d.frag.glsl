@@ -94,6 +94,13 @@ vec4 cc_clampValue(in vec4 value)
   return clamp(cycle, 0.0, 1.0);
 }
 
+
+vec4 blendColor(vec4 oldColor, vec4 newColor)
+{
+  // @TODO
+  return mix(oldColor, newColor, newColor.a);
+}
+
 void main()
 {
   vec4 cc0[4]; // inputs for 1. cycle
@@ -159,8 +166,7 @@ void main()
   if(ccValue.a < ccData.alphaClip)discard;
 
   ccValue.a = flagSelect(DRAW_FLAG_ALPHA_BLEND, 1.0, ccValue.a);
-  FragColor = ccValue;
-
+  
   // Depth / Decal handling:
   // We manually write & check depth values in an image in addition to the actual depth buffer.
   // This allows us to do manual compares (e.g. decals) and discard fragments based on that.
@@ -177,9 +183,29 @@ void main()
     int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
     int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), ccData.primDepth.y));
 
-    if((flags & DRAW_FLAG_DECAL) != 0 && depthDiff > DECAL_DEPTH_DELTA) {
-      discard;
+    bool depthTest = writeDepth >= oldDepth;
+    if((flags & DRAW_FLAG_DECAL) != 0) {
+      depthTest = depthDiff <= DECAL_DEPTH_DELTA;
+    }
+    
+    uint oldColorInt = imageLoad(color_texture, screenPosPixel).r;
+    vec4 oldColor = unpackUnorm4x8(oldColorInt);
+    
+    ccValue = blendColor(oldColor, ccValue);
+    ccValue.a = 1.0;  
+    uint writeColor = packUnorm4x8(ccValue);
+
+    if(depthTest) {
+      // Note: a basic 'imageStore' cause coherence issues (@TODO: why?)
+      imageAtomicExchange(color_texture, screenPosPixel, writeColor.r);
     }
   }
+  
   endInvocationInterlockARB();
+
+  // Since we only need our own depth/color textures, there is no need to actually write out fragments.
+  // It may seem like we could use the calc. color from out texture and set it here,
+  // but it will result in incoherent results (e.g. blocky artifacts due to depth related race-conditions)
+  // This is most prominent on decals.
+  discard;
 }
