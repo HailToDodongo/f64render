@@ -139,16 +139,16 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
         f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
 
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
-  from fast64_internal.utility import s_rgb_alpha_1_tuple
+  from fast64_internal.utility import s_rgb_alpha_1_tuple, gammaCorrect
   from fast64_internal.f3d.f3d_material import all_combiner_uses
   cc_uses = all_combiner_uses(f3d_mat)
 
   f64mat = F64Material(
-     color_prim = s_rgb_alpha_1_tuple(f3d_mat.prim_color),
+     color_prim = gammaCorrect(f3d_mat.prim_color),
      lod_prim   = [f3d_mat.prim_lod_min, f3d_mat.prim_lod_frac],
      prim_depth = [f3d_mat.rdp_settings.prim_depth.z, f3d_mat.rdp_settings.prim_depth.dz],
      set_prim   = f3d_mat.set_prim and cc_uses['Primitive'],
-     color_env  = s_rgb_alpha_1_tuple(f3d_mat.env_color),
+     color_env  = gammaCorrect(f3d_mat.env_color),
      set_env    = f3d_mat.set_env and cc_uses['Environment'],
      ck         = tuple((*s_rgb_alpha_1_tuple(f3d_mat.key_center), *f3d_mat.key_scale, 0)), # extra 0 for alignment
      set_ck     = f3d_mat.set_key and cc_uses['Key'],
@@ -162,6 +162,9 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
      flags = 0,
      cc = get_cc_settings(f3d_mat)
   )
+
+  f64mat.color_prim.append(f3d_mat.prim_color[3])
+  f64mat.color_env.append(f3d_mat.env_color[3])
 
   if f3d_mat.rdp_settings.g_cull_back: f64mat.cull = "BACK"
   if f3d_mat.rdp_settings.g_cull_front: f64mat.cull = "FRONT"
