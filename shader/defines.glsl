@@ -33,6 +33,19 @@
 #define CC_A_LOD_FRAC      8
 #define CC_A_PRIM_LOD_FRAC 9
 
+// Blender inputs
+#define BLENDER_0       0
+#define BLENDER_1       1
+#define BLENDER_CLR_IN  2
+#define BLENDER_CLR_MEM 3
+#define BLENDER_CLR_BL  4
+#define BLENDER_CLR_FOG 5
+#define BLENDER_A_IN    6
+#define BLENDER_A_FOG   7
+#define BLENDER_A_SHADE 8
+#define BLENDER_1MA     9
+#define BLENDER_A_MEM   10
+
 // Geometry modes (some of these should be removed)
 #define G_ZBUFFER             (1 << 0)
 #define G_SHADE               (1 << 1)

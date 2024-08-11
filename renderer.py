@@ -111,6 +111,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.flat("VEC4", "tileSize")
       vert_out.flat("INT", "flags")
 
+      shader_info.define("depth_unchanged", "depth_any")
       shader_info.push_constant("MAT4", "matMVP")
       shader_info.push_constant("MAT3", "matNorm")
       # shader_info.push_constant("VEC2", "zNearFar")
@@ -163,16 +164,14 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         "}")
       
       shader_info.fragment_source("void main() {"
-                                  "ivec2 textureSize2d = imageSize(color_texture    );"
-        " ivec2 coord = ivec2(uv.xy*vec2(textureSize2d)); "
-        "  FragColor =  unpackUnorm4x8(imageLoad(color_texture, coord).r);"
-         #"  gl_FragDepth = float(imageLoad(depth_texture, coord).r) / float(0xFFFFF);"
-        # "  gl_FragDepth = 1.0  - gl_FragDepth;"
-         #"  gl_FragDepth += 0.001;"
-        "  gl_FragDepth = 0.99999;"
+        "ivec2 textureSize2d = imageSize(color_texture);"
+
+#         " vec2 uv2 = round(uv * 240.0) / 240.0;"
+        " vec2 uv2 = uv;"
         
-        #"  if(flags != 0)FragColor.rgb = imageLoad(color_texture, coord).rrr * 0.00002;"
-        #"   FragColor.a = 1.0;"
+        " ivec2 coord = ivec2(uv2.xy*vec2(textureSize2d)); "
+        " FragColor =  unpackUnorm4x8(imageLoad(color_texture, coord).r);"
+        " gl_FragDepth = 0.99999;"
         "}")
       self.shader_2d = gpu.shader.create_from_info(shader_info)                             
 
@@ -306,6 +305,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.shader.image('depth_texture', self.depth_texture)
     self.shader.image('color_texture', self.color_texture)
 
+    gpu.state.depth_test_set('NONE')
+    gpu.state.depth_mask_set(False)
+    gpu.state.blend_set("NONE")
+
     # Draw opaque objects first, then transparent ones
     #for obj in object_queue[0] + object_queue[1]:
     for layer in range(2):
@@ -345,11 +348,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             continue
 
           gpu.state.face_culling_set(f64mat.cull)
-          gpu.state.blend_set(f64mat.blend)
-          gpu.state.depth_test_set(f64mat.depth_test)
-          gpu.state.depth_mask_set(f64mat.depth_write)
-          #gpu.state.depth_test_set('NONE')
-          #gpu.state.depth_mask_set(False)
+          #gpu.state.blend_set(f64mat.blend)
+          #gpu.state.depth_test_set(f64mat.depth_test)
+          #gpu.state.depth_mask_set(f64mat.depth_write)
+          
           
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)

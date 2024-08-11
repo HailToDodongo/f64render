@@ -1,7 +1,7 @@
 
 // allows for a per-pixel atomic access to the depth texture (needed for decals)
 #extension GL_ARB_fragment_shader_interlock : enable
-layout(pixel_interlock_ordered) in;
+layout(pixel_interlock_unordered) in;
 
 #define DECAL_DEPTH_DELTA 100
 
@@ -113,10 +113,43 @@ vec4 cc_clampValue(in vec4 value)
 }
 
 
-vec4 blendColor(vec4 oldColor, vec4 newColor)
+vec4 blender_fetch(
+  in int val, in vec4 colorBlend, in vec4 colorFog, in vec4 colorFB, in vec4 colorCC,
+  in vec4 blenderA
+)
 {
-  // @TODO
-  return mix(oldColor, newColor, newColor.a);
+       if (val == BLENDER_1      ) return vec4(1.0);
+  else if (val == BLENDER_CLR_IN ) return colorCC;
+  else if (val == BLENDER_CLR_MEM) return colorFB;
+  else if (val == BLENDER_CLR_BL ) return colorBlend;
+  else if (val == BLENDER_CLR_FOG) return colorFog;
+  else if (val == BLENDER_A_IN   ) return colorCC.aaaa;
+  else if (val == BLENDER_A_FOG  ) return colorFog.aaaa;
+  else if (val == BLENDER_A_SHADE) return colorCC.aaaa;
+  else if (val == BLENDER_1MA    ) return 1.0 - blenderA.aaaa;
+  else if (val == BLENDER_A_MEM  ) return colorFB.aaaa;
+  return vec4(0.0); // default: BLENDER_0
+}
+
+vec4 blendColor(in vec4 oldColor, vec4 newColor)
+{
+  vec4 colorBlend = vec4(0.0); // @TODO
+  vec4 colorFog = vec4(1.0, 0.0, 0.0, 1.0); // @TODO
+
+  vec4 P = blender_fetch(ccData.blender[1][0], colorBlend, colorFog, oldColor, newColor, vec4(0.0));
+  vec4 A = blender_fetch(ccData.blender[1][1], colorBlend, colorFog, oldColor, newColor, vec4(0.0));
+  vec4 M = blender_fetch(ccData.blender[1][2], colorBlend, colorFog, oldColor, newColor, A);
+  vec4 B = blender_fetch(ccData.blender[1][3], colorBlend, colorFog, oldColor, newColor, A);
+
+  vec4 res = ((P * A) + (M * B)) / (A + B);
+
+  P = blender_fetch(ccData.blender[1][0], colorBlend, colorFog, oldColor, res, vec4(0.0));
+  A = blender_fetch(ccData.blender[1][1], colorBlend, colorFog, oldColor, res, vec4(0.0));
+  M = blender_fetch(ccData.blender[1][2], colorBlend, colorFog, oldColor, res, A);
+  B = blender_fetch(ccData.blender[1][3], colorBlend, colorFog, oldColor, res, A);
+
+  return ((P * A) + (M * B)) / (A + B);
+  return newColor;
 }
 
 void main()
@@ -181,42 +214,51 @@ void main()
 
   ccValue.rgb = gammaToLinear(ccValue.rgb);
 
-  if(ccValue.a < ALPHA_CLIP)discard;
-
-  ccValue.a = flagSelect(DRAW_FLAG_ALPHA_BLEND, 1.0, ccValue.a);
-
   // Depth / Decal handling:
   // We manually write & check depth values in an image in addition to the actual depth buffer.
   // This allows us to do manual compares (e.g. decals) and discard fragments based on that.
   // In order to guarantee proper ordering, we both use atomic image access as well as an invocation interlock per pixel.
   // If those where not used, a race-condition will occur where after a depth read happens, the depth value might have changed,
   // leading to culled faces writing their color values even though a new triangles has a closer depth value already written.
-  ivec2 screenPosPixel = ivec2(gl_FragCoord.xy);
+  ivec2 screenPosPixel = ivec2(trunc(gl_FragCoord.xy));
 
   int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, ccData.primLodDepth.z));
   int writeDepth = int(flagSelect(DRAW_FLAG_DECAL, currDepth, -0xFFFFFF));
+
+  if((flags & DRAW_FLAG_ALPHA_BLEND) != 0) {
+    writeDepth = -0xFFFFFF;
+  }
+
+  bool shouldDiscard = ccValue.a < ALPHA_CLIP;
+  if(shouldDiscard)writeDepth = -0xFFFFFF;
 
   beginInvocationInterlockARB();
   {
     int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
     int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), ccData.primLodDepth.w));
 
-    bool depthTest = writeDepth >= oldDepth;
+    bool depthTest = currDepth >= oldDepth;
     if((flags & DRAW_FLAG_DECAL) != 0) {
       depthTest = depthDiff <= DECAL_DEPTH_DELTA;
     }
     
     uint oldColorInt = imageLoad(color_texture, screenPosPixel).r;
     vec4 oldColor = unpackUnorm4x8(oldColorInt);
+    oldColor.a = 0.0;
     
     ccValue = blendColor(oldColor, ccValue);
-    ccValue.a = 1.0;  
+    
+    shouldDiscard = shouldDiscard || !depthTest;
+    
+    ccValue = mixSelect(shouldDiscard, ccValue, oldColor);
+
+    ccValue.a = 1.0;
     uint writeColor = packUnorm4x8(ccValue);
 
-    if(depthTest) {
-      // Note: a basic 'imageStore' cause coherence issues (@TODO: why?)
-      imageAtomicExchange(color_texture, screenPosPixel, writeColor.r);
-    }
+    imageAtomicExchange(color_texture, screenPosPixel, writeColor.r);
+    /*if(imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r) != oldColorInt) {
+      imageStore(color_texture, screenPosPixel, int(0xFFFFFFFF).xxxx);
+    }*/
   }
   
   endInvocationInterlockARB();
