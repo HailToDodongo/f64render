@@ -15,11 +15,11 @@ void main()
   }
 
   lightTotal.rgb = clamp(lightTotal.rgb, 0.0, 1.0);
+  lightTotal.a = 1.0;
 
   vec3 shadeWithLight = geoModeSelect(G_PACKED_NORMALS, lightTotal.rgb, cc_shade.rgb * lightTotal.rgb);
   cc_shade.rgb = geoModeSelect(G_LIGHTING, cc_shade.rgb, shadeWithLight);
   cc_shade = clamp(cc_shade, 0.0, 1.0);
-  cc_shade.a = 1.0;
   cc_shade_flat = cc_shade;
 
   vec2 uvGen = geoModeSelect(G_TEX_GEN, inUV, normScreen.xy * 0.5 + 0.5);
