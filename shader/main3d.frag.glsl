@@ -245,20 +245,17 @@ void main()
     uint oldColorInt = imageLoad(color_texture, screenPosPixel).r;
     vec4 oldColor = unpackUnorm4x8(oldColorInt);
     oldColor.a = 0.0;
-    
+  
     ccValue = blendColor(oldColor, ccValue);
     
     shouldDiscard = shouldDiscard || !depthTest;
     
     ccValue = mixSelect(shouldDiscard, ccValue, oldColor);
-
     ccValue.a = 1.0;
     uint writeColor = packUnorm4x8(ccValue);
 
-    imageAtomicExchange(color_texture, screenPosPixel, writeColor.r);
-    /*if(imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r) != oldColorInt) {
-      imageStore(color_texture, screenPosPixel, int(0xFFFFFFFF).xxxx);
-    }*/
+    if(shouldDiscard)oldColorInt = writeColor;
+    imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r);
   }
   
   endInvocationInterlockARB();
