@@ -6,6 +6,7 @@ import time
 
 from .tile import get_tile_conf
 from .cc import get_cc_settings
+from .blender import get_blender_settings
 
 GEO_MODE_ATTRS = [
   "g_zbuffer",
@@ -76,6 +77,7 @@ class F64Material:
     set_light: bool = False
 
     cc: np.ndarray = None
+    blender: tuple = None
     tile_conf: np.ndarray = None
     cull: str = 'NONE'
     blend: str = 'NONE'
@@ -160,7 +162,8 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
      set_light   = f3d_mat.set_lights, # shared flag
 
      flags = 0,
-     cc = get_cc_settings(f3d_mat)
+     cc = get_cc_settings(f3d_mat),
+     blender= get_blender_settings(f3d_mat)
   )
 
   f64mat.color_prim.append(f3d_mat.prim_color[3])

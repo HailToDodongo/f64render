@@ -1,20 +1,25 @@
 // NOTE: this file is included by blender via 'shader_info.typedef_source(...)'
 
-struct UBO_CCData 
+struct UBO_CCData
 {
+  ivec4 blender[2];
+  ivec4 modes; // geo, other-low, other-high, flags
   vec4 lightColor[2];
-  vec4 lightDir[2];
+  vec4 lightDir[2]; // [0].w is alpha clip
   vec4 prim_color;
   vec4 env;
   vec4 ambientColor;
   vec4 ck_center;
   vec4 ck_scale;
-  float prim_lod_min, prim_lod_frac;
-  float k0, k1, k2, k3, k4, k5;
-  vec2 primDepth;
-  int geoMode, othermodeL, othermodeH;
-  float alphaClip;
+  vec4 primLodDepth;
+  vec4 k_0123;
+  vec2 k_45;  
 };
+
+#define GEO_MODE     ccData.modes.x
+#define OTHER_MODE_L ccData.modes.y
+#define OTHER_MODE_H ccData.modes.z
+#define ALPHA_CLIP   ccData.lightDir[0].w
 
 struct UBO_TileConf
 {

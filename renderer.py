@@ -20,7 +20,14 @@ current_ucode = None
 # N64 is y-up, blender is z-up
 yup_to_zup = mathutils.Quaternion((1, 0, 0), math.radians(90.0)).to_matrix().to_4x4()
 
-UNIFORM_BUFFER_STRUCT = struct.Struct(f"4f 4f 3f i 3f i 4f 4f 4f 8f 2f 6f 2f i i i f")
+UNIFORM_BUFFER_STRUCT = struct.Struct(
+  "8i"              # blender
+  "i i i i"         # geoMode, other-low, other-high, padding
+  "4f 4f 3f f 3f f" # light (first light direction W is alpha-clip)
+  "4f 4f 4f"        # prim, env, ambient
+  "2f 2f"           # prim_lod, prim-depth
+  "8f 6f"           # ck center/scale, k0-k5,
+)
 
 def cache_del_by_mesh(mesh_name):
   global f64render_meshCache
@@ -349,10 +356,15 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           self.shader.uniform_int("inFlags", f64mat.flags)
 
           renderObj.cc_data[mat_idx] = UNIFORM_BUFFER_STRUCT.pack(
+            *f64mat.blender,
+            f64mat.geo_mode,
+            f64mat.othermode_l,
+            f64mat.othermode_h,
+            0,
             *(f64mat.color_light if f64mat.set_light      else lightColor0),
             *lightColor1,
             *lightDir0,
-            0,
+            f64mat.alphaClip,
             *lightDir1,
             0,
             *(f64mat.color_prim    if f64mat.set_prim     else lastPrimColor),
@@ -360,12 +372,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             *(f64mat.color_ambient if f64mat.set_ambient  else ambientColor),
             *(f64mat.ck            if f64mat.set_ck       else last_ck),
             *(f64mat.lod_prim      if f64mat.set_prim     else last_prim_lod),
-            *(f64mat.convert       if f64mat.set_convert  else last_convert),
             *f64mat.prim_depth,
-            f64mat.geo_mode,
-            f64mat.othermode_l,
-            f64mat.othermode_h,
-            f64mat.alphaClip
+            *(f64mat.convert       if f64mat.set_convert  else last_convert),
           )
 
           if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
