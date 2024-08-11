@@ -6,7 +6,7 @@ layout(pixel_interlock_ordered) in;
 #define DECAL_DEPTH_DELTA 100
 
 vec4 quantize3Bit(in vec4 color) {
-  return vec4(round(color.rgb * 8.0) / 8.0, step(color.a, 0.5));
+  return vec4(round(color.rgb * 8.0) / 8.0, step(0.5, color.a));
 }
 
 vec4 quantize4Bit(in vec4 color) {
