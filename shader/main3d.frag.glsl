@@ -1,7 +1,11 @@
 
 // allows for a per-pixel atomic access to the depth texture (needed for decals)
-#extension GL_ARB_fragment_shader_interlock : enable
-layout(pixel_interlock_unordered) in;
+//#define USE_SHADER_INTERLOCK 1
+
+#ifdef USE_SHADER_INTERLOCK
+  #extension GL_ARB_fragment_shader_interlock : enable
+  layout(pixel_interlock_unordered) in;
+#endif
 
 #define DECAL_DEPTH_DELTA 100
 
@@ -152,6 +156,38 @@ vec4 blendColor(in vec4 oldColor, vec4 newColor)
   return newColor;
 }
 
+// This implements the part of the fragment shader that touches depth/color.
+// All of this must happen in a way that guarantees coherency.
+// This is either done via the shader interlock extension, or with a re-try loop as a fallback.
+void color_depth_blending(
+  in bool shouldDiscard_, in int writeDepth, in int currDepth, in vec4 ccValue,
+  out uint oldColorInt, out uint writeColor
+)
+{
+  ivec2 screenPosPixel = ivec2(trunc(gl_FragCoord.xy));
+  int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
+  int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), ccData.primLodDepth.w));
+
+  bool depthTest = currDepth >= oldDepth;
+  if((flags & DRAW_FLAG_DECAL) != 0) {
+    depthTest = depthDiff <= DECAL_DEPTH_DELTA;
+  }
+    
+  oldColorInt = imageLoad(color_texture, screenPosPixel).r;
+  vec4 oldColor = unpackUnorm4x8(oldColorInt);
+  oldColor.a = 0.0;
+  
+  vec4 ccValueBlended = blendColor(oldColor, ccValue);
+  
+  bool shouldDiscard = shouldDiscard_ || !depthTest;
+
+  vec4 ccValueWrite = mixSelect(shouldDiscard, ccValueBlended, oldColor);
+  ccValueWrite.a = 1.0;
+  writeColor = packUnorm4x8(ccValueWrite);
+
+  if(shouldDiscard)oldColorInt = writeColor;
+}
+
 void main()
 {
   vec4 cc0[4]; // inputs for 1. cycle
@@ -232,33 +268,30 @@ void main()
   bool shouldDiscard = ccValue.a < ALPHA_CLIP;
   if(shouldDiscard)writeDepth = -0xFFFFFF;
 
-  beginInvocationInterlockARB();
+  #ifdef USE_SHADER_INTERLOCK
+    beginInvocationInterlockARB();
+  #endif
   {
-    int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
-    int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), ccData.primLodDepth.w));
+    uint oldColorInt = 0;
+    uint writeColor = 0;
+    color_depth_blending(shouldDiscard, writeDepth, currDepth, ccValue, oldColorInt, writeColor);
 
-    bool depthTest = currDepth >= oldDepth;
-    if((flags & DRAW_FLAG_DECAL) != 0) {
-      depthTest = depthDiff <= DECAL_DEPTH_DELTA;
-    }
-    
-    uint oldColorInt = imageLoad(color_texture, screenPosPixel).r;
-    vec4 oldColor = unpackUnorm4x8(oldColorInt);
-    oldColor.a = 0.0;
-  
-    ccValue = blendColor(oldColor, ccValue);
-    
-    shouldDiscard = shouldDiscard || !depthTest;
-    
-    ccValue = mixSelect(shouldDiscard, ccValue, oldColor);
-    ccValue.a = 1.0;
-    uint writeColor = packUnorm4x8(ccValue);
-
-    if(shouldDiscard)oldColorInt = writeColor;
-    imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r);
+    #ifdef USE_SHADER_INTERLOCK
+      imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r);
+    #else
+      int count = 4;
+      while(imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r) != oldColorInt && !shouldDiscard && count > 0)  {
+        --count;
+        color_depth_blending(shouldDiscard, writeDepth, currDepth, ccValue, oldColorInt, writeColor);
+      }
+      // Debug: write solod color in case we failed with out loop (seems to never happen)
+      //if(count <= 1)imageAtomicExchange(color_texture, screenPosPixel, 0xFFFF00FF);
+    #endif
   }
   
-  endInvocationInterlockARB();
+  #ifdef USE_SHADER_INTERLOCK
+    endInvocationInterlockARB();
+  #endif
 
   // Since we only need our own depth/color textures, there is no need to actually write out fragments.
   // It may seem like we could use the calc. color from out texture and set it here,
