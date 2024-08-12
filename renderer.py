@@ -62,7 +62,12 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.color_texture: gpu.types.GPUTexture = None
     self.update_render_size(128, 128)
     bpy.app.handlers.depsgraph_update_post.append(Fast64RenderEngine.mesh_change_listener)
-    
+
+    ext_list = gpu.capabilities.extensions_get()
+    self.shader_interlock_support = 'GL_ARB_fragment_shader_interlock' in ext_list
+    if not self.shader_interlock_support:
+      print("\n\nWarning: GL_ARB_fragment_shader_interlock not supported!\n\n")
+
   def __del__(self):
     if Fast64RenderEngine.mesh_change_listener in bpy.app.handlers.depsgraph_update_post:
       bpy.app.handlers.depsgraph_update_post.remove(Fast64RenderEngine.mesh_change_listener)
@@ -112,9 +117,12 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.flat("INT", "flags")
 
       shader_info.define("depth_unchanged", "depth_any")
+
+      if self.shader_interlock_support:
+        shader_info.define("USE_SHADER_INTERLOCK", "1")
+
       shader_info.push_constant("MAT4", "matMVP")
       shader_info.push_constant("MAT3", "matNorm")
-      # shader_info.push_constant("VEC2", "zNearFar")
       # TODO: move properties into one big uniform buffer
       shader_info.push_constant("INT", "inFlags")
 
@@ -141,38 +149,34 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       
       self.shader = gpu.shader.create_from_info(shader_info)      
       self.shader_fallback = gpu.shader.from_builtin('UNIFORM_COLOR')
- 
-      ######
 
+      # 2D shader (offscreen to viewport)
       shader_info = gpu.types.GPUShaderCreateInfo()
       vert_out = gpu.types.GPUStageInterfaceInfo("vert_2d")
       vert_out.smooth("VEC2", "uv")
 
       # Hacky workaround for blender forcing an early depth test ('layout(depth_unchanged) out float gl_FragDepth;')
       shader_info.define("depth_unchanged", "depth_any")
-
-      shader_info.image(2, 'R32UI', "UINT_2D_ATOMIC", "color_texture", qualifiers={"READ", "WRITE"})
-      shader_info.image(3, 'R32I',  "INT_2D_ATOMIC",  "depth_texture", qualifiers={"READ", "WRITE"})
+      shader_info.image(2, 'R32UI', "UINT_2D_ATOMIC", "color_texture", qualifiers={"READ"})
 
       shader_info.fragment_out(0, "VEC4", "FragColor")
       shader_info.vertex_in(0, "VEC2", "pos")
       shader_info.vertex_out(vert_out)
 
-      shader_info.vertex_source("void main() {"
-        "  gl_Position = vec4(pos, 0.0, 1.0);"
-        "  uv = pos.xy * 0.5 + 0.5;"
-        "}")
+      shader_info.vertex_source("""
+        void main() {
+          gl_Position = vec4(pos, 0.0, 1.0);
+          uv = pos.xy * 0.5 + 0.5;
+        }""")
       
-      shader_info.fragment_source("void main() {"
-        "ivec2 textureSize2d = imageSize(color_texture);"
-
-#         " vec2 uv2 = round(uv * 240.0) / 240.0;"
-        " vec2 uv2 = uv;"
-        
-        " ivec2 coord = ivec2(uv2.xy*vec2(textureSize2d)); "
-        " FragColor =  unpackUnorm4x8(imageLoad(color_texture, coord).r);"
-        " gl_FragDepth = 0.99999;"
-        "}")
+      shader_info.fragment_source("""
+        void main() {
+          ivec2 textureSize2d = imageSize(color_texture);
+          ivec2 coord = ivec2(uv.xy * vec2(textureSize2d)); 
+          FragColor =  unpackUnorm4x8(imageLoad(color_texture, coord).r);
+          gl_FragDepth = 0.99999;
+        }""")
+      
       self.shader_2d = gpu.shader.create_from_info(shader_info)                             
 
   def mesh_change_listener(scene, depsgraph):
@@ -351,8 +355,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           #gpu.state.blend_set(f64mat.blend)
           #gpu.state.depth_test_set(f64mat.depth_test)
           #gpu.state.depth_mask_set(f64mat.depth_write)
-          
-          
+
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_int("inFlags", f64mat.flags)
@@ -405,7 +408,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.time_count += 1
     #print("Time F3D (ms)", draw_time)
 
-    if self.time_count > 30:
+    if self.time_count > 60:
       print("Time F3D AVG (ms)", self.time_total / self.time_count, self.time_count)
       self.time_total = 0
       self.time_count = 0
@@ -445,12 +448,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     self.shader_2d.bind()
     
-    vert = [
-      (-1, -1),
-      (-1, 1),
-      (1, 1),
-      (1, -1),
-    ]
+    # @TODO: cache this
+    vert = [(-1, -1), (-1, 1), (1, 1), (1, -1)]
     indices = [(0, 1, 2), (0, 2, 3)]
     type = "TRIS"
     vbo_format = self.shader_2d.format_calc()
@@ -460,7 +459,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     batch = gpu.types.GPUBatch(type=type, buf=vbo, elem=ibo)
 
     self.shader_2d.image('color_texture', self.color_texture)
-    self.shader_2d.image('depth_texture', self.depth_texture)
     batch.draw(self.shader_2d)
     print("Time 2D (ms)", (time.process_time() - t) * 1000)
 

@@ -1,7 +1,4 @@
-
-// allows for a per-pixel atomic access to the depth texture (needed for decals)
-//#define USE_SHADER_INTERLOCK 1
-
+// allows for a per-pixel atomic access to the depth texture (needed for decals & blending)
 #ifdef USE_SHADER_INTERLOCK
   #extension GL_ARB_fragment_shader_interlock : enable
   layout(pixel_interlock_unordered) in;
@@ -159,8 +156,8 @@ vec4 blendColor(in vec4 oldColor, vec4 newColor)
 // This implements the part of the fragment shader that touches depth/color.
 // All of this must happen in a way that guarantees coherency.
 // This is either done via the shader interlock extension, or with a re-try loop as a fallback.
-void color_depth_blending(
-  in bool shouldDiscard_, in int writeDepth, in int currDepth, in vec4 ccValue,
+bool color_depth_blending(
+  in bool alphaTestFailed, in int writeDepth, in int currDepth, in vec4 ccValue,
   out uint oldColorInt, out uint writeColor
 )
 {
@@ -179,13 +176,14 @@ void color_depth_blending(
   
   vec4 ccValueBlended = blendColor(oldColor, ccValue);
   
-  bool shouldDiscard = shouldDiscard_ || !depthTest;
+  bool shouldDiscard = alphaTestFailed || !depthTest;
 
   vec4 ccValueWrite = mixSelect(shouldDiscard, ccValueBlended, oldColor);
   ccValueWrite.a = 1.0;
   writeColor = packUnorm4x8(ccValueWrite);
 
   if(shouldDiscard)oldColorInt = writeColor;
+  return shouldDiscard;
 }
 
 void main()
@@ -256,6 +254,8 @@ void main()
   // In order to guarantee proper ordering, we both use atomic image access as well as an invocation interlock per pixel.
   // If those where not used, a race-condition will occur where after a depth read happens, the depth value might have changed,
   // leading to culled faces writing their color values even though a new triangles has a closer depth value already written.
+  // If no interlock is available, we use a re-try loop to ensure that the correct color value is written.
+  // Note that this fallback can create small artifacts since depth and color are not able to be synchronized together.
   ivec2 screenPosPixel = ivec2(trunc(gl_FragCoord.xy));
 
   int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, ccData.primLodDepth.z));
@@ -265,27 +265,32 @@ void main()
     writeDepth = -0xFFFFFF;
   }
 
-  bool shouldDiscard = ccValue.a < ALPHA_CLIP;
-  if(shouldDiscard)writeDepth = -0xFFFFFF;
+  bool alphaTestFailed = ccValue.a < ALPHA_CLIP;
+  if(alphaTestFailed)writeDepth = -0xFFFFFF;
 
   #ifdef USE_SHADER_INTERLOCK
     beginInvocationInterlockARB();
+  #else
+    if(alphaTestFailed)discard; // discarding in interlock seems to cause issues, only do it here
   #endif
+
   {
     uint oldColorInt = 0;
     uint writeColor = 0;
-    color_depth_blending(shouldDiscard, writeDepth, currDepth, ccValue, oldColorInt, writeColor);
+    color_depth_blending(alphaTestFailed, writeDepth, currDepth, ccValue, oldColorInt, writeColor);
 
     #ifdef USE_SHADER_INTERLOCK
       imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r);
     #else
       int count = 4;
-      while(imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r) != oldColorInt && !shouldDiscard && count > 0)  {
+      while(imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r) != oldColorInt && count > 0)  {
         --count;
-        color_depth_blending(shouldDiscard, writeDepth, currDepth, ccValue, oldColorInt, writeColor);
+        if(color_depth_blending(alphaTestFailed, writeDepth, currDepth, ccValue, oldColorInt, writeColor)) {
+          break;
+        }
       }
-      // Debug: write solod color in case we failed with out loop (seems to never happen)
-      //if(count <= 1)imageAtomicExchange(color_texture, screenPosPixel, 0xFFFF00FF);
+      // Debug: write solod color in case we failed with our loop (seems to never happen)
+      //if(count <= 0)imageAtomicExchange(color_texture, screenPosPixel, 0xFFFF00FF);
     #endif
   }
   
