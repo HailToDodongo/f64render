@@ -1,7 +1,8 @@
-
-// allows for a per-pixel atomic access to the depth texture (needed for decals)
-#extension GL_ARB_fragment_shader_interlock : enable
-layout(pixel_interlock_ordered) in;
+// allows for a per-pixel atomic access to the depth texture (needed for decals & blending)
+#ifdef USE_SHADER_INTERLOCK
+  #extension GL_ARB_fragment_shader_interlock : enable
+  layout(pixel_interlock_unordered) in;
+#endif
 
 #define DECAL_DEPTH_DELTA 100
 
@@ -78,10 +79,10 @@ vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in
   else if(val == CC_C_SHADE_ALPHA) return shade.aaa;
   else if(val == CC_C_ENV_ALPHA  ) return ccData.env.aaa;
   // else if(val == CC_C_LOD_FRAC   ) return vec3(0.0); // @TODO
-  else if(val == CC_C_PRIM_LOD_FRAC) return vec3(ccData.prim_lod_frac);
+  else if(val == CC_C_PRIM_LOD_FRAC) return vec3(ccData.primLodDepth[1]);
   else if(val == CC_C_NOISE      ) return vec3(noise(posScreen*0.25));
-  else if(val == CC_C_K4         ) return vec3(ccData.k4);
-  else if(val == CC_C_K5         ) return vec3(ccData.k5);
+  else if(val == CC_C_K4         ) return vec3(ccData.k_45[0]);
+  else if(val == CC_C_K5         ) return vec3(ccData.k_45[1]);
   else if(val == CC_C_1          ) return vec3(1.0);
   return vec3(0.0); // default: CC_C_0
 }
@@ -95,7 +96,7 @@ float cc_fetchAlpha(in int val, vec4 shade, in vec4 comb, in vec4 texData0, in v
   else if(val == CC_A_SHADE) return shade.a;
   else if(val == CC_A_ENV  ) return ccData.env.a;
   // else if(val == CC_A_LOD_FRAC) return 0.0; // @TODO
-  else if(val == CC_A_PRIM_LOD_FRAC) return ccData.prim_lod_frac;
+  else if(val == CC_A_PRIM_LOD_FRAC) return ccData.primLodDepth[1];
   else if(val == CC_A_1    ) return 1.0;
   return 0.0; // default: CC_A_0
 }
@@ -110,6 +111,79 @@ vec4 cc_clampValue(in vec4 value)
 {
   vec4 cycle = mod(value + 0.5, 2.0) - 0.5;
   return clamp(cycle, 0.0, 1.0);
+}
+
+
+vec4 blender_fetch(
+  in int val, in vec4 colorBlend, in vec4 colorFog, in vec4 colorFB, in vec4 colorCC,
+  in vec4 blenderA
+)
+{
+       if (val == BLENDER_1      ) return vec4(1.0);
+  else if (val == BLENDER_CLR_IN ) return colorCC;
+  else if (val == BLENDER_CLR_MEM) return colorFB;
+  else if (val == BLENDER_CLR_BL ) return colorBlend;
+  else if (val == BLENDER_CLR_FOG) return colorFog;
+  else if (val == BLENDER_A_IN   ) return colorCC.aaaa;
+  else if (val == BLENDER_A_FOG  ) return colorFog.aaaa;
+  else if (val == BLENDER_A_SHADE) return cc_shade.aaaa;
+  else if (val == BLENDER_1MA    ) return 1.0 - blenderA.aaaa;
+  else if (val == BLENDER_A_MEM  ) return colorFB.aaaa;
+  return vec4(0.0); // default: BLENDER_0
+}
+
+vec4 blendColor(in vec4 oldColor, vec4 newColor)
+{
+  vec4 colorBlend = vec4(0.0); // @TODO
+  vec4 colorFog = vec4(1.0, 0.0, 0.0, 1.0); // @TODO
+
+  vec4 P = blender_fetch(ccData.blender[1][0], colorBlend, colorFog, oldColor, newColor, vec4(0.0));
+  vec4 A = blender_fetch(ccData.blender[1][1], colorBlend, colorFog, oldColor, newColor, vec4(0.0));
+  vec4 M = blender_fetch(ccData.blender[1][2], colorBlend, colorFog, oldColor, newColor, A);
+  vec4 B = blender_fetch(ccData.blender[1][3], colorBlend, colorFog, oldColor, newColor, A);
+
+  vec4 res = ((P * A) + (M * B)) / (A + B);
+  res.a = newColor.a; // preserve for 'A_IN'
+
+  P = blender_fetch(ccData.blender[1][0], colorBlend, colorFog, oldColor, res, vec4(0.0));
+  A = blender_fetch(ccData.blender[1][1], colorBlend, colorFog, oldColor, res, vec4(0.0));
+  M = blender_fetch(ccData.blender[1][2], colorBlend, colorFog, oldColor, res, A);
+  B = blender_fetch(ccData.blender[1][3], colorBlend, colorFog, oldColor, res, A);
+
+  return ((P * A) + (M * B)) / (A + B);
+}
+
+// This implements the part of the fragment shader that touches depth/color.
+// All of this must happen in a way that guarantees coherency.
+// This is either done via the shader interlock extension, or with a re-try loop as a fallback.
+bool color_depth_blending(
+  in bool alphaTestFailed, in int writeDepth, in int currDepth, in vec4 ccValue,
+  out uint oldColorInt, out uint writeColor
+)
+{
+  ivec2 screenPosPixel = ivec2(trunc(gl_FragCoord.xy));
+  int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
+  int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), ccData.primLodDepth.w));
+
+  bool depthTest = currDepth >= oldDepth;
+  if((flags & DRAW_FLAG_DECAL) != 0) {
+    depthTest = depthDiff <= DECAL_DEPTH_DELTA;
+  }
+    
+  oldColorInt = imageLoad(color_texture, screenPosPixel).r;
+  vec4 oldColor = unpackUnorm4x8(oldColorInt);
+  oldColor.a = 0.0;
+  
+  vec4 ccValueBlended = blendColor(oldColor, vec4(ccValue.rgb, pow(ccValue.a, 1.0 / GAMMA_FACTOR)));
+  
+  bool shouldDiscard = alphaTestFailed || !depthTest;
+
+  vec4 ccValueWrite = mixSelect(shouldDiscard, ccValueBlended, oldColor);
+  ccValueWrite.a = 1.0;
+  writeColor = packUnorm4x8(ccValueWrite);
+
+  if(shouldDiscard)oldColorInt = writeColor;
+  return shouldDiscard;
 }
 
 void main()
@@ -174,30 +248,59 @@ void main()
 
   ccValue.rgb = gammaToLinear(ccValue.rgb);
 
-  if(ccValue.a < ccData.alphaClip)discard;
-
-  ccValue.a = flagSelect(DRAW_FLAG_ALPHA_BLEND, 1.0, ccValue.a);
-  FragColor = ccValue;
-
   // Depth / Decal handling:
   // We manually write & check depth values in an image in addition to the actual depth buffer.
   // This allows us to do manual compares (e.g. decals) and discard fragments based on that.
   // In order to guarantee proper ordering, we both use atomic image access as well as an invocation interlock per pixel.
   // If those where not used, a race-condition will occur where after a depth read happens, the depth value might have changed,
   // leading to culled faces writing their color values even though a new triangles has a closer depth value already written.
-  ivec2 screenPosPixel = ivec2(gl_FragCoord.xy);
+  // If no interlock is available, we use a re-try loop to ensure that the correct color value is written.
+  // Note that this fallback can create small artifacts since depth and color are not able to be synchronized together.
+  ivec2 screenPosPixel = ivec2(trunc(gl_FragCoord.xy));
 
-  int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, ccData.primDepth.x));
+  int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, ccData.primLodDepth.z));
   int writeDepth = int(flagSelect(DRAW_FLAG_DECAL, currDepth, -0xFFFFFF));
 
-  beginInvocationInterlockARB();
-  {
-    int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
-    int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), ccData.primDepth.y));
-
-    if((flags & DRAW_FLAG_DECAL) != 0 && depthDiff > DECAL_DEPTH_DELTA) {
-      discard;
-    }
+  if((flags & DRAW_FLAG_ALPHA_BLEND) != 0) {
+    writeDepth = -0xFFFFFF;
   }
-  endInvocationInterlockARB();
+
+  bool alphaTestFailed = ccValue.a < ALPHA_CLIP;
+  if(alphaTestFailed)writeDepth = -0xFFFFFF;
+
+  #ifdef USE_SHADER_INTERLOCK
+    beginInvocationInterlockARB();
+  #else
+    if(alphaTestFailed)discard; // discarding in interlock seems to cause issues, only do it here
+  #endif
+
+  {
+    uint oldColorInt = 0;
+    uint writeColor = 0;
+    color_depth_blending(alphaTestFailed, writeDepth, currDepth, ccValue, oldColorInt, writeColor);
+
+    #ifdef USE_SHADER_INTERLOCK
+      imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r);
+    #else
+      int count = 4;
+      while(imageAtomicCompSwap(color_texture, screenPosPixel, oldColorInt, writeColor.r) != oldColorInt && count > 0)  {
+        --count;
+        if(color_depth_blending(alphaTestFailed, writeDepth, currDepth, ccValue, oldColorInt, writeColor)) {
+          break;
+        }
+      }
+      // Debug: write solod color in case we failed with our loop (seems to never happen)
+      //if(count <= 0)imageAtomicExchange(color_texture, screenPosPixel, 0xFFFF00FF);
+    #endif
+  }
+  
+  #ifdef USE_SHADER_INTERLOCK
+    endInvocationInterlockARB();
+  #endif
+
+  // Since we only need our own depth/color textures, there is no need to actually write out fragments.
+  // It may seem like we could use the calc. color from out texture and set it here,
+  // but it will result in incoherent results (e.g. blocky artifacts due to depth related race-conditions)
+  // This is most prominent on decals.
+  discard;
 }

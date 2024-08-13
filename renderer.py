@@ -20,7 +20,14 @@ current_ucode = None
 # N64 is y-up, blender is z-up
 yup_to_zup = mathutils.Quaternion((1, 0, 0), math.radians(90.0)).to_matrix().to_4x4()
 
-UNIFORM_BUFFER_STRUCT = struct.Struct(f"4f 4f 3f i 3f i 4f 4f 4f 8f 2f 6f 2f i i i f")
+UNIFORM_BUFFER_STRUCT = struct.Struct(
+  "8i"              # blender
+  "i i i i"         # geoMode, other-low, other-high, padding
+  "4f 4f 3f f 3f f" # light (first light direction W is alpha-clip)
+  "4f 4f 4f"        # prim, env, ambient
+  "2f 2f"           # prim_lod, prim-depth
+  "8f 6f"           # ck center/scale, k0-k5,
+)
 
 def cache_del_by_mesh(mesh_name):
   global f64render_meshCache
@@ -47,11 +54,20 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.shader_fallback = None
     self.draw_handler = None
     self.last_ucode = None
+
+    self.time_count = 0
+    self.time_total = 0
         
     self.depth_texture: gpu.types.GPUTexture = None
+    self.color_texture: gpu.types.GPUTexture = None
     self.update_render_size(128, 128)
     bpy.app.handlers.depsgraph_update_post.append(Fast64RenderEngine.mesh_change_listener)
-    
+
+    ext_list = gpu.capabilities.extensions_get()
+    self.shader_interlock_support = 'GL_ARB_fragment_shader_interlock' in ext_list
+    if not self.shader_interlock_support:
+      print("\n\nWarning: GL_ARB_fragment_shader_interlock not supported!\n\n")
+
   def __del__(self):
     if Fast64RenderEngine.mesh_change_listener in bpy.app.handlers.depsgraph_update_post:
       bpy.app.handlers.depsgraph_update_post.remove(Fast64RenderEngine.mesh_change_listener)
@@ -60,6 +76,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
   def update_render_size(self, size_x, size_y):
     if not self.depth_texture or size_x != self.depth_texture.width or size_y != self.depth_texture.height:
       self.depth_texture = gpu.types.GPUTexture((size_x, size_y), format='R32I')
+      self.color_texture = gpu.types.GPUTexture((size_x, size_y), format='R32UI')
 
   def init_shader(self):
     if not self.shader:
@@ -99,6 +116,11 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.flat("VEC4", "tileSize")
       vert_out.flat("INT", "flags")
 
+      shader_info.define("depth_unchanged", "depth_any")
+
+      if self.shader_interlock_support:
+        shader_info.define("USE_SHADER_INTERLOCK", "1")
+
       shader_info.push_constant("MAT4", "matMVP")
       shader_info.push_constant("MAT3", "matNorm")
       # TODO: move properties into one big uniform buffer
@@ -116,7 +138,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       
       shader_info.sampler(0, "FLOAT_2D", "tex0")
       shader_info.sampler(1, "FLOAT_2D", "tex1")
-      shader_info.image(3, 'R32I', "INT_2D_ATOMIC", "depth_texture", qualifiers={"READ", "WRITE"})
+      
+      shader_info.image(2, 'R32UI', "UINT_2D_ATOMIC", "color_texture", qualifiers={"READ", "WRITE"})
+      shader_info.image(3, 'R32I',  "INT_2D_ATOMIC",  "depth_texture", qualifiers={"READ", "WRITE"})
+
       shader_info.fragment_out(0, "VEC4", "FragColor")
 
       shader_info.vertex_source(shaderVert)
@@ -124,6 +149,35 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       
       self.shader = gpu.shader.create_from_info(shader_info)      
       self.shader_fallback = gpu.shader.from_builtin('UNIFORM_COLOR')
+
+      # 2D shader (offscreen to viewport)
+      shader_info = gpu.types.GPUShaderCreateInfo()
+      vert_out = gpu.types.GPUStageInterfaceInfo("vert_2d")
+      vert_out.smooth("VEC2", "uv")
+
+      # Hacky workaround for blender forcing an early depth test ('layout(depth_unchanged) out float gl_FragDepth;')
+      shader_info.define("depth_unchanged", "depth_any")
+      shader_info.image(2, 'R32UI', "UINT_2D_ATOMIC", "color_texture", qualifiers={"READ"})
+
+      shader_info.fragment_out(0, "VEC4", "FragColor")
+      shader_info.vertex_in(0, "VEC2", "pos")
+      shader_info.vertex_out(vert_out)
+
+      shader_info.vertex_source("""
+        void main() {
+          gl_Position = vec4(pos, 0.0, 1.0);
+          uv = pos.xy * 0.5 + 0.5;
+        }""")
+      
+      shader_info.fragment_source("""
+        void main() {
+          ivec2 textureSize2d = imageSize(color_texture);
+          ivec2 coord = ivec2(uv.xy * vec2(textureSize2d)); 
+          FragColor =  unpackUnorm4x8(imageLoad(color_texture, coord).r);
+          gl_FragDepth = 0.99999;
+        }""")
+      
+      self.shader_2d = gpu.shader.create_from_info(shader_info)                             
 
   def mesh_change_listener(scene, depsgraph):
     global f64render_meshCache
@@ -174,7 +228,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     space_view_3d = context.space_data
     self.update_render_size(context.region.width, context.region.height)
-    self.depth_texture.clear(format='UINT', value=[0])
+    self.color_texture.clear(format='UINT', value=[0])
+    self.depth_texture.clear(format='INT', value=[0])
 
     self.init_shader()
     self.shader.bind()
@@ -252,6 +307,11 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           continue
         
     self.shader.image('depth_texture', self.depth_texture)
+    self.shader.image('color_texture', self.color_texture)
+
+    gpu.state.depth_test_set('NONE')
+    gpu.state.depth_mask_set(False)
+    gpu.state.blend_set("NONE")
 
     # Draw opaque objects first, then transparent ones
     #for obj in object_queue[0] + object_queue[1]:
@@ -261,6 +321,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         # Handle "Local View" (pressing '/')
         if space_view_3d.local_view and not obj.local_view_get(space_view_3d): continue
   
+        # print("space_view_3d.local_view", space_view_3d.clip_start, space_view_3d.clip_end)
+
         meshID = obj.name + "#" + obj.data.name
         if meshID not in f64render_meshCache: continue
         # print("  -> Draw object", meshID)
@@ -290,19 +352,21 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             continue
 
           gpu.state.face_culling_set(f64mat.cull)
-          gpu.state.blend_set(f64mat.blend)
-          gpu.state.depth_test_set(f64mat.depth_test)
-          gpu.state.depth_mask_set(f64mat.depth_write)
-          
+
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_int("inFlags", f64mat.flags)
 
           renderObj.cc_data[mat_idx] = UNIFORM_BUFFER_STRUCT.pack(
+            *f64mat.blender,
+            f64mat.geo_mode,
+            f64mat.othermode_l,
+            f64mat.othermode_h,
+            0,
             *(f64mat.color_light if f64mat.set_light      else lightColor0),
             *lightColor1,
             *lightDir0,
-            0,
+            f64mat.alphaClip,
             *lightDir1,
             0,
             *(f64mat.color_prim    if f64mat.set_prim     else lastPrimColor),
@@ -310,12 +374,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             *(f64mat.color_ambient if f64mat.set_ambient  else ambientColor),
             *(f64mat.ck            if f64mat.set_ck       else last_ck),
             *(f64mat.lod_prim      if f64mat.set_prim     else last_prim_lod),
-            *(f64mat.convert       if f64mat.set_convert  else last_convert),
             *f64mat.prim_depth,
-            f64mat.geo_mode,
-            f64mat.othermode_l,
-            f64mat.othermode_h,
-            f64mat.alphaClip
+            *(f64mat.convert       if f64mat.set_convert  else last_convert),
           )
 
           if f64mat.set_prim: lastPrimColor, last_prim_lod = f64mat.color_prim, f64mat.lod_prim
@@ -340,7 +400,15 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           mat_idx += 1  
 
     f64render_materials_dirty = False
-    print("Time F3D (ms)", (time.process_time() - t) * 1000)
+    draw_time = (time.process_time() - t) * 1000
+    self.time_total += draw_time
+    self.time_count += 1
+    #print("Time F3D (ms)", draw_time)
+
+    if self.time_count > 20:
+      print("Time F3D AVG (ms)", self.time_total / self.time_count, self.time_count)
+      self.time_total = 0
+      self.time_count = 0
           
     if len(fallback_objs) > 0:
       t = time.process_time()
@@ -367,8 +435,27 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         renderObj.batch.draw(self.shader_fallback)
         obj.to_mesh_clear()
 
-      print("Time fallback (ms)", (time.process_time() - t) * 1000)
+      #print("Time fallback (ms)", (time.process_time() - t) * 1000)
 
+    #t = time.process_time()
+    gpu.state.face_culling_set('NONE')
+    gpu.state.blend_set("ALPHA")
+    gpu.state.depth_test_set('LESS')
+    gpu.state.depth_mask_set(False)
+
+    self.shader_2d.bind()
+    
+    # @TODO: why can't i cache this?
+    vbo_2d = gpu.types.GPUVertBuf(self.shader_2d.format_calc(), 6)
+    vbo_2d.attr_fill("pos", [(-1, -1), (-1, 1), (1, 1), (1, 1), (1, -1), (-1, -1)])
+    batch_2d = gpu.types.GPUBatch(type="TRIS", buf=vbo_2d)
+
+    self.shader_2d.image('color_texture', self.color_texture)
+    batch_2d.draw(self.shader_2d)
+
+    #print("Time 2D (ms)", (time.process_time() - t) * 1000)
+
+    
 # By default blender will hide quite a few panels like materials or vertex attributes
 # Add this method to override the check blender does by render engine
 def get_panels():
