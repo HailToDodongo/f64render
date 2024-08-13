@@ -126,7 +126,7 @@ vec4 blender_fetch(
   else if (val == BLENDER_CLR_FOG) return colorFog;
   else if (val == BLENDER_A_IN   ) return colorCC.aaaa;
   else if (val == BLENDER_A_FOG  ) return colorFog.aaaa;
-  else if (val == BLENDER_A_SHADE) return colorCC.aaaa;
+  else if (val == BLENDER_A_SHADE) return cc_shade.aaaa;
   else if (val == BLENDER_1MA    ) return 1.0 - blenderA.aaaa;
   else if (val == BLENDER_A_MEM  ) return colorFB.aaaa;
   return vec4(0.0); // default: BLENDER_0
@@ -143,6 +143,7 @@ vec4 blendColor(in vec4 oldColor, vec4 newColor)
   vec4 B = blender_fetch(ccData.blender[1][3], colorBlend, colorFog, oldColor, newColor, A);
 
   vec4 res = ((P * A) + (M * B)) / (A + B);
+  res.a = newColor.a; // preserve for 'A_IN'
 
   P = blender_fetch(ccData.blender[1][0], colorBlend, colorFog, oldColor, res, vec4(0.0));
   A = blender_fetch(ccData.blender[1][1], colorBlend, colorFog, oldColor, res, vec4(0.0));
@@ -150,7 +151,6 @@ vec4 blendColor(in vec4 oldColor, vec4 newColor)
   B = blender_fetch(ccData.blender[1][3], colorBlend, colorFog, oldColor, res, A);
 
   return ((P * A) + (M * B)) / (A + B);
-  return newColor;
 }
 
 // This implements the part of the fragment shader that touches depth/color.
@@ -174,7 +174,7 @@ bool color_depth_blending(
   vec4 oldColor = unpackUnorm4x8(oldColorInt);
   oldColor.a = 0.0;
   
-  vec4 ccValueBlended = blendColor(oldColor, ccValue);
+  vec4 ccValueBlended = blendColor(oldColor, vec4(ccValue.rgb, pow(ccValue.a, 1.0 / GAMMA_FACTOR)));
   
   bool shouldDiscard = alphaTestFailed || !depthTest;
 
