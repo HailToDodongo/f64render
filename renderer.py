@@ -352,9 +352,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             continue
 
           gpu.state.face_culling_set(f64mat.cull)
-          #gpu.state.blend_set(f64mat.blend)
-          #gpu.state.depth_test_set(f64mat.depth_test)
-          #gpu.state.depth_mask_set(f64mat.depth_write)
 
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
