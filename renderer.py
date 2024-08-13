@@ -408,7 +408,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.time_count += 1
     #print("Time F3D (ms)", draw_time)
 
-    if self.time_count > 60:
+    if self.time_count > 20:
       print("Time F3D AVG (ms)", self.time_total / self.time_count, self.time_count)
       self.time_total = 0
       self.time_count = 0
@@ -440,7 +440,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
       #print("Time fallback (ms)", (time.process_time() - t) * 1000)
 
-    t = time.process_time()
+    #t = time.process_time()
     gpu.state.face_culling_set('NONE')
     gpu.state.blend_set("ALPHA")
     gpu.state.depth_test_set('LESS')
@@ -448,19 +448,15 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     self.shader_2d.bind()
     
-    # @TODO: cache this
-    vert = [(-1, -1), (-1, 1), (1, 1), (1, -1)]
-    indices = [(0, 1, 2), (0, 2, 3)]
-    type = "TRIS"
-    vbo_format = self.shader_2d.format_calc()
-    vbo = gpu.types.GPUVertBuf(vbo_format, len(vert))
-    vbo.attr_fill("pos", vert)    
-    ibo = gpu.types.GPUIndexBuf(type=type, seq=indices)
-    batch = gpu.types.GPUBatch(type=type, buf=vbo, elem=ibo)
+    # @TODO: why can't i cache this?
+    vbo_2d = gpu.types.GPUVertBuf(self.shader_2d.format_calc(), 6)
+    vbo_2d.attr_fill("pos", [(-1, -1), (-1, 1), (1, 1), (1, 1), (1, -1), (-1, -1)])
+    batch_2d = gpu.types.GPUBatch(type="TRIS", buf=vbo_2d)
 
     self.shader_2d.image('color_texture', self.color_texture)
-    batch.draw(self.shader_2d)
-    print("Time 2D (ms)", (time.process_time() - t) * 1000)
+    batch_2d.draw(self.shader_2d)
+
+    #print("Time 2D (ms)", (time.process_time() - t) * 1000)
 
     
 # By default blender will hide quite a few panels like materials or vertex attributes
