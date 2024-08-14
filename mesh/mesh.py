@@ -58,24 +58,12 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   mesh.vertices.foreach_get('co', tmp_vec3.ravel())
   positions = tmp_vec3[indices]
 
-  # determine if smooth shading is used
-  use_flat = np.empty(len(mesh.loop_triangles), dtype=np.int8)
-  mesh.loop_triangles.foreach_get('use_smooth', use_flat)
-  use_smooth = use_flat.repeat(3)
-  use_flat = 1 - use_flat
-
-  # fetch and mask smooth normals
-  mesh.vertices.foreach_get('normal', tmp_vec3.ravel())
-  normals = tmp_vec3[indices]
-  normals *= use_smooth[:,np.newaxis] # mask out
-
-  # fetch and merge flat-shaded normals
-  tmp_vec3_norm = np.empty((len(mesh.loop_triangles), 3), dtype=np.float32)
-  mesh.loop_triangles.foreach_get('normal', tmp_vec3_norm.ravel())
-  tmp_vec3_norm *= use_flat[:,np.newaxis] # mask out
-  normals += np.repeat(tmp_vec3_norm, 3, axis=0)
+  # read normals (these contain pre-calculated normals handling  flat, smooth, custom split normals)
+  corner_norm = np.empty((len(mesh.corner_normals), 3), dtype=np.float32)
+  mesh.corner_normals.foreach_get('vector', corner_norm.ravel())
 
   mesh.loop_triangles.foreach_get('loops', indices)
+  normals = corner_norm[indices]
   
   if uv_layer: 
     uv_layer.foreach_get('uv', uvs.ravel())
@@ -107,16 +95,17 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   # this is done to do a cheap split by material
   mat_count = len(mesh.materials)
 
-  mesh.loop_triangles.foreach_get('material_index', use_flat) # materials, e.g.: [0, 1, 0, 1, 2, 1, ...]
+  mat_indices = np.empty(len(mesh.loop_triangles), dtype=np.int8)
+  mesh.loop_triangles.foreach_get('material_index', mat_indices) # materials, e.g.: [0, 1, 0, 1, 2, 1, ...]
   index_array = np.arange(num_corners, dtype=np.int32) # -> [0, 1, 2, 3, 4, 5, ...]
   index_array = index_array.reshape((-1, 3))           # -> [[0, 1, 2], [3, 4, 5], ...]
 
   # remove faces based on 'tri_hidden' (0=visible, 1=hidden)
   index_array = index_array[tri_hidden == 0]
-  use_flat = use_flat[tri_hidden == 0]
+  mat_indices = mat_indices[tri_hidden == 0]
   
-  index_array = index_array[np.argsort(use_flat)] # sort index_array by value in use_flat (aka material-index)
-  index_offsets = np.bincount(use_flat, minlength=mat_count)    # now get counts of each material, e.g.: [1, 2] where index is material-index
+  index_array = index_array[np.argsort(mat_indices)] # sort index_array by value in use_flat (aka material-index)
+  index_offsets = np.bincount(mat_indices, minlength=mat_count)    # now get counts of each material, e.g.: [1, 2] where index is material-index
   index_offsets = np.insert(index_offsets, 0, 0)  # prepend 0 to turn counts into offsets
   index_offsets = np.cumsum(index_offsets) * 3    # converted into accumulated offset / mul. by 3 for triangles
 

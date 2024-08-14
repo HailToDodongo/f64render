@@ -244,7 +244,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     if not f64_render.useWorldSpaceLighting:
       view_rotation = (mathutils.Quaternion((1, 0, 0), math.radians(90.0)) @ context.region_data.view_matrix.to_quaternion()).to_matrix()
       lightDir0, lightDir1 = lightDir0 @ view_rotation, lightDir1 @ view_rotation
-    lightDir0, lightDir1 = lightDir0 @ yup_to_zup, lightDir1 @ yup_to_zup
+
+    # Note: space conversion to Y-up happens indirectly during the normal matrix calculation
     lightColor0 = f64_render.light0Color
     lightColor1 = f64_render.light1Color
     ambientColor = f64_render.ambientColor
@@ -331,7 +332,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         modelview_matrix = obj.matrix_world
         projection_matrix = context.region_data.perspective_matrix
         mvp_matrix = projection_matrix @ modelview_matrix
-        normal_matrix = (obj.matrix_world @ context.region_data.view_matrix).to_3x3().inverted().transposed()
+        normal_matrix = (context.region_data.view_matrix @ obj.matrix_world).to_3x3().inverted().transposed()
+
         self.shader.uniform_float("matMVP", mvp_matrix)
         self.shader.uniform_float("matNorm", normal_matrix)
 
