@@ -11,7 +11,7 @@ vec3 linearToGamma(in vec3 color)
 }
 
 #define mixSelect(amount, a, b) (mix(a, b, float(amount)))
-#define flagSelect(flag_mask, a, b) (mixSelect((flags & flag_mask) != 0, a, b))
+#define flagSelect(flag_mask, a, b) (mixSelect((DRAW_FLAGS & flag_mask) != 0, a, b))
 #define geoModeSelect(flag_mask, a, b) (mixSelect((GEO_MODE & flag_mask) != 0, a, b))
 #define othermodeHSelect(flag_mask, a, b) mixSelect((material.othermodeH & flag_mask) != 0, a, b)
 

@@ -166,7 +166,7 @@ bool color_depth_blending(
   int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), material.primLodDepth.w));
 
   bool depthTest = currDepth >= oldDepth;
-  if((flags & DRAW_FLAG_DECAL) != 0) {
+  if((DRAW_FLAGS & DRAW_FLAG_DECAL) != 0) {
     depthTest = depthDiff <= DECAL_DEPTH_DELTA;
   }
     
@@ -261,7 +261,7 @@ void main()
   int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, material.primLodDepth.z));
   int writeDepth = int(flagSelect(DRAW_FLAG_DECAL, currDepth, -0xFFFFFF));
 
-  if((flags & DRAW_FLAG_ALPHA_BLEND) != 0) {
+  if((DRAW_FLAGS & DRAW_FLAG_ALPHA_BLEND) != 0) {
     writeDepth = -0xFFFFFF;
   }
 

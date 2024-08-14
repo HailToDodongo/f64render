@@ -24,7 +24,7 @@ UNIFORM_BUFFER_STRUCT = struct.Struct(
   "8i"              # blender
   "16f"             # tile settings (mask/shift/low/high)
   "16i"             # color-combiner settings
-  "i i i i"         # geoMode, other-low, other-high, padding
+  "i i i i"         # geoMode, other-low, other-high, flags
   "4f 4f 3f f 3f f" # light (first light direction W is alpha-clip)
   "4f 4f 4f"        # prim, env, ambient
   "2f 2f"           # prim_lod, prim-depth
@@ -116,7 +116,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       vert_out.smooth("VEC4", "uv")
       vert_out.no_perspective("VEC2", "posScreen")
       vert_out.flat("VEC4", "tileSize")
-      vert_out.flat("INT", "flags")
 
       shader_info.define("depth_unchanged", "depth_any")
 
@@ -125,8 +124,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
       shader_info.push_constant("MAT4", "matMVP")
       shader_info.push_constant("MAT3", "matNorm")
-      # TODO: move properties into one big uniform buffer
-      shader_info.push_constant("INT", "inFlags")
 
       shader_info.uniform_buf(0, "UBO_Material", "material")
       
@@ -355,7 +352,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
           if f64mat.tex0Buff: self.shader.uniform_sampler("tex0", f64mat.tex0Buff)
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
-          self.shader.uniform_int("inFlags", f64mat.flags)
 
           renderObj.mat_data[mat_idx] = UNIFORM_BUFFER_STRUCT.pack(
             *f64mat.blender,
@@ -364,7 +360,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             f64mat.geo_mode,
             f64mat.othermode_l,
             f64mat.othermode_h,
-            0,
+            f64mat.flags,
             *(f64mat.color_light if f64mat.set_light      else lightColor0),
             *lightColor1,
             *lightDir0,

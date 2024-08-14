@@ -6,7 +6,6 @@ void main()
   vec3 normScreen = normalize(matNorm * norm);
 
   cc_shade = inColor;
-  flags = inFlags;
 
   vec4 lightTotal = vec4(material.ambientColor.rgb, 0.0);
   for(int i=0; i<2; ++i) {
