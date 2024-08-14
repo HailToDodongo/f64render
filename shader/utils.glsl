@@ -13,7 +13,7 @@ vec3 linearToGamma(in vec3 color)
 #define mixSelect(amount, a, b) (mix(a, b, float(amount)))
 #define flagSelect(flag_mask, a, b) (mixSelect((flags & flag_mask) != 0, a, b))
 #define geoModeSelect(flag_mask, a, b) (mixSelect((GEO_MODE & flag_mask) != 0, a, b))
-#define othermodeHSelect(flag_mask, a, b) mixSelect((ccData.othermodeH & flag_mask) != 0, a, b)
+#define othermodeHSelect(flag_mask, a, b) mixSelect((material.othermodeH & flag_mask) != 0, a, b)
 
 #define zSource() (OTHER_MODE_L & (1 << G_MDSFT_ZSRCSEL))
 #define texFilter() (OTHER_MODE_H & (2 << G_MDSFT_TEXTFILT))
@@ -33,11 +33,11 @@ vec4 mirrorUV(vec4 uvEnd, vec4 uvIn)
 
 ivec4 wrappedMirror(ivec4 texSize, ivec4 uv)
 {
-  vec4 mask = abs(tileConf.mask);
+  vec4 mask = abs(material.mask);
 
   // fetch settings
-  vec4 isClamp      = step(tileConf.mask, vec4(1.0));
-  vec4 isMirror     = step(tileConf.high, vec4(0.0));
+  vec4 isClamp      = step(material.mask, vec4(1.0));
+  vec4 isMirror     = step(material.high, vec4(0.0));
   vec4 isForceClamp = step(mask, vec4(1.0)); // mask == 0 forces clamping
   mask = mix(mask, vec4(256), isForceClamp); // if mask == 0, we also have to ignore it
 

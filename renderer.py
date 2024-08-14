@@ -22,6 +22,8 @@ yup_to_zup = mathutils.Quaternion((1, 0, 0), math.radians(90.0)).to_matrix().to_
 
 UNIFORM_BUFFER_STRUCT = struct.Struct(
   "8i"              # blender
+  "16f"             # tile settings (mask/shift/low/high)
+  "16i"             # color-combiner settings
   "i i i i"         # geoMode, other-low, other-high, padding
   "4f 4f 3f f 3f f" # light (first light direction W is alpha-clip)
   "4f 4f 4f"        # prim, env, ambient
@@ -126,9 +128,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       # TODO: move properties into one big uniform buffer
       shader_info.push_constant("INT", "inFlags")
 
-      shader_info.uniform_buf(0, "UBO_CCData", "ccData")
-      shader_info.uniform_buf(1, "UBO_CCConf", "ccConf")
-      shader_info.uniform_buf(2, "UBO_TileConf", "tileConf")
+      shader_info.uniform_buf(0, "UBO_Material", "material")
       
       shader_info.vertex_in(0, "VEC3", "pos") # keep blenders name keep for better compat.
       shader_info.vertex_in(1, "VEC3", "inNormal")
@@ -265,7 +265,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         # check for objects that transitioned from non-f3d to f3d materials
         if meshID in f64render_meshCache:
           renderObj = f64render_meshCache[meshID]
-          if len(renderObj.cc_conf) == 0 and obj_has_f3d_materials(obj):
+          if len(renderObj.mat_data) == 0 and obj_has_f3d_materials(obj):
             del f64render_meshCache[meshID]
             
         # Mesh not cached: parse & convert mesh data, then prepare a GPU batch
@@ -288,18 +288,16 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
             renderObj.indices
           )
 
-          renderObj.cc_data = [bytes(52 * 4)] * mat_count
-          renderObj.cc_conf = [np.zeros(4*4, dtype=np.int32)] * mat_count
+          ubo_size = UNIFORM_BUFFER_STRUCT.size
+          ubo_size = (ubo_size + 15) & ~15 # force 16-byte alignment
 
-          renderObj.ubo_cc_data = [None] * mat_count
-          renderObj.ubo_cc_conf = [None] * mat_count
-          renderObj.ubo_tile_conf = [None] * mat_count
+          renderObj.mat_data = [bytes(ubo_size)] * mat_count
+
+          renderObj.ubo_mat_data = [None] * mat_count
           renderObj.materials = [None] * mat_count
 
           for i in range(mat_count):
-            renderObj.ubo_cc_data[i] = gpu.types.GPUUniformBuf(renderObj.cc_data[i])
-            renderObj.ubo_cc_conf[i] = gpu.types.GPUUniformBuf(renderObj.cc_conf[i])
-            renderObj.ubo_tile_conf[i] = gpu.types.GPUUniformBuf(np.empty(4*4, dtype=np.float32))
+            renderObj.ubo_mat_data[i] = gpu.types.GPUUniformBuf(renderObj.mat_data[i])
 
           obj.to_mesh_clear()
         
@@ -359,8 +357,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if f64mat.tex1Buff: self.shader.uniform_sampler("tex1", f64mat.tex1Buff)
           self.shader.uniform_int("inFlags", f64mat.flags)
 
-          renderObj.cc_data[mat_idx] = UNIFORM_BUFFER_STRUCT.pack(
+          renderObj.mat_data[mat_idx] = UNIFORM_BUFFER_STRUCT.pack(
             *f64mat.blender,
+            *f64mat.tile_conf,
+            *f64mat.cc,
             f64mat.geo_mode,
             f64mat.othermode_l,
             f64mat.othermode_h,
@@ -385,18 +385,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           if f64mat.set_ck: last_ck = f64mat.ck
           if f64mat.set_convert: last_convert = f64mat.convert
           
-          renderObj.ubo_cc_data[mat_idx].update(renderObj.cc_data[mat_idx])                        
-          self.shader.uniform_block("ccData", renderObj.ubo_cc_data[mat_idx])
+          renderObj.ubo_mat_data[mat_idx].update(renderObj.mat_data[mat_idx])                        
+          self.shader.uniform_block("material", renderObj.ubo_mat_data[mat_idx])
           
-          # renderObj.cc_conf[mat_idx][0:16] = f64mat.cc
-          renderObj.ubo_cc_conf[mat_idx].update(f64mat.cc)
-          self.shader.uniform_block("ccConf", renderObj.ubo_cc_conf[mat_idx])
-
-          if f64mat.tile_conf is not None:
-            renderObj.ubo_tile_conf[mat_idx].update(f64mat.tile_conf)
-            self.shader.uniform_block("tileConf", renderObj.ubo_tile_conf[mat_idx])
-
-          # @TODO: is frustum-culling necessary, or done by blender?
+          # @TODO: frustum-culling (blender doesn't do it)
           
           renderObj.batch.draw_range(self.shader, elem_start=renderObj.index_offsets[mat_idx], elem_count=indices_count)
           mat_idx += 1  

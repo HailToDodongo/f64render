@@ -8,10 +8,10 @@ void main()
   cc_shade = inColor;
   flags = inFlags;
 
-  vec4 lightTotal = vec4(ccData.ambientColor.rgb, 0.0);
+  vec4 lightTotal = vec4(material.ambientColor.rgb, 0.0);
   for(int i=0; i<2; ++i) {
-    float lightStren = max(dot(norm, ccData.lightDir[i].xyz), 0.0);
-    lightTotal += ccData.lightColor[i] * lightStren;
+    float lightStren = max(dot(norm, material.lightDir[i].xyz), 0.0);
+    lightTotal += material.lightColor[i] * lightStren;
   }
 
   lightTotal.rgb = clamp(lightTotal.rgb, 0.0, 1.0);
@@ -28,14 +28,14 @@ void main()
   ivec4 texSize = ivec4(textureSize(tex0, 0), textureSize(tex1, 0));
   // we simulate UVs in pixel-space, since there is only one UV set, we scale by the first texture size
   uv = uvGen.xyxy * texSize.xyxy;
-  // apply tileConf.shift from top left of texture:
+  // apply material.shift from top left of texture:
   uv.yw = texSize.yw - uv.yw - 1;
-  uv *= tileConf.shift;
+  uv *= material.shift;
   uv.yw = texSize.yw - uv.yw - 1;
 
-  uv = uv - (tileConf.shift * 0.5) - tileConf.low;
+  uv = uv - (material.shift * 0.5) - material.low;
 
-  tileSize = abs(tileConf.high) - abs(tileConf.low);
+  tileSize = abs(material.high) - abs(material.low);
 
   // @TODO: uvgen (f3d + t3d)
   // forward CC (@TODO: do part of this here? e.g. prim/env/shade etc.)

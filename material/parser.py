@@ -209,7 +209,6 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
       f64mat.flags |= DRAW_FLAG_TEX1_3BIT
 
 
-  if f3d_mat.tex0.tex or f3d_mat.tex1.tex:
-    f64mat.tile_conf = get_tile_conf(f3d_mat)
+  f64mat.tile_conf = get_tile_conf(f3d_mat)
 
   return f64mat
