@@ -191,7 +191,6 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       for update in depsgraph.updates:
         # this seems to trigger for all materials if only one changed (@TODO: check if i can get proper updates)
         f64render_materials_dirty = True
-      return
 
     if depsgraph.id_type_updated('OBJECT'):
       for update in depsgraph.updates:
