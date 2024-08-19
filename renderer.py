@@ -308,6 +308,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     gpu.state.depth_mask_set(False)
     gpu.state.blend_set("NONE")
 
+    # get visible objects, this cannot be done in despgraph objects for whatever reason
+    hidden_obj = [ob.name for ob in bpy.context.view_layer.objects if not ob.visible_get() and ob.data is not None]
+
     # Draw opaque objects first, then transparent ones
     #for obj in object_queue[0] + object_queue[1]:
     for layer in range(2):
@@ -315,6 +318,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         if obj.data is None: continue
         # Handle "Local View" (pressing '/')
         if space_view_3d.local_view and not obj.local_view_get(space_view_3d): continue
+        if obj.name in hidden_obj: continue
+        # print("Draw object", obj.data.session_uid, visible_obj_ids)
   
         # print("space_view_3d.local_view", space_view_3d.clip_start, space_view_3d.clip_end)
 
@@ -406,6 +411,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       for obj in fallback_objs:
         meshID = obj.name + "#" + obj.data.name
         renderObj = f64render_meshCache[meshID]
+
+        if obj.name in hidden_obj: continue
 
         # get material (we don't expect any changes here, so caching is fine)
         if renderObj.materials is None or len(renderObj.materials) == 0:
