@@ -127,11 +127,6 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
         and f3d_mat.rdp_settings.blend_b2 == "G_BL_1MA"
     ):
         f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
-  else:
-    if f3d_mat.draw_layer.sm64 == '4':
-        f64mat.alphaClip = 0.125
-    elif f3d_mat.draw_layer.sm64 in ['5', '6','7']:
-        f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
 
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   from fast64_internal.utility import s_rgb_alpha_1_tuple, gammaCorrect
@@ -186,7 +181,7 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   if f3d_mat.draw_layer.oot == 'Transparent' or f3d_mat.draw_layer.sm64 in ['5', '6','7']:
     f64mat.queue = 1
 
-  if f3d_mat.draw_layer.sm64 in ['2', '6'] or f3d_mat.rdp_settings.zmode == 'ZMODE_DEC':
+  if f3d_mat.rdp_settings.zmode == 'ZMODE_DEC':
     f64mat.flags |= DRAW_FLAG_DECAL
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
