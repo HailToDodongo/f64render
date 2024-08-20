@@ -8,6 +8,8 @@ from .tile import get_tile_conf
 from .cc import get_cc_settings
 from .blender import get_blender_settings
 
+MISSING_TEXTURE_COLOR = (0, 0, 0)
+
 GEO_MODE_ATTRS = [
   "g_zbuffer",
   "g_shade",
@@ -189,24 +191,36 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
   if f3d_mat.draw_layer.sm64 in ['2', '6'] or f3d_mat.rdp_settings.zmode == 'ZMODE_DEC':
     f64mat.flags |= DRAW_FLAG_DECAL
 
-  # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
-  if f3d_mat.tex0.tex:
-    f64mat.tex0Buff = gpu.texture.from_image(f3d_mat.tex0.tex)
-    if f3d_mat.tex0.tex_format == 'I4' or f3d_mat.tex0.tex_format == 'I8':
-      f64mat.flags |= DRAW_FLAG_TEX0_MONO
-    if f3d_mat.tex0.tex_format == 'I4' or f3d_mat.tex0.tex_format == 'IA8':
-      f64mat.flags |= DRAW_FLAG_TEX0_4BIT
-    if f3d_mat.tex0.tex_format == 'IA4':
-      f64mat.flags |= DRAW_FLAG_TEX0_3BIT
+  if "f64render_missing_texture" not in bpy.data.images:
+    # Create a 1x1 image
+    bpy.data.images.new("f64render_missing_texture", 1, 1).pixels = MISSING_TEXTURE_COLOR
 
-  if f3d_mat.tex1.tex:
-    f64mat.tex1Buff = gpu.texture.from_image(f3d_mat.tex1.tex)
-    if f3d_mat.tex1.tex_format == 'I4' or f3d_mat.tex1.tex_format == 'I8':
+  # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
+  if f3d_mat.tex0.tex_set:
+    if f3d_mat.tex0.tex:
+      f64mat.tex0Buff = gpu.texture.from_image(f3d_mat.tex0.tex)
+      if f3d_mat.tex0.tex_format == 'I4' or f3d_mat.tex0.tex_format == 'I8':
+        f64mat.flags |= DRAW_FLAG_TEX0_MONO
+      if f3d_mat.tex0.tex_format == 'I4' or f3d_mat.tex0.tex_format == 'IA8':
+        f64mat.flags |= DRAW_FLAG_TEX0_4BIT
+      if f3d_mat.tex0.tex_format == 'IA4':
+        f64mat.flags |= DRAW_FLAG_TEX0_3BIT
+    else:
+      f64mat.tex0Buff = gpu.texture.from_image(bpy.data.images["f64render_missing_texture"])
+      f64mat.flags |= DRAW_FLAG_TEX0_MONO
+
+  if f3d_mat.tex1.tex_set:
+    if f3d_mat.tex1.tex:
+      f64mat.tex1Buff = gpu.texture.from_image(f3d_mat.tex1.tex)
+      if f3d_mat.tex1.tex_format == 'I4' or f3d_mat.tex1.tex_format == 'I8':
+        f64mat.flags |= DRAW_FLAG_TEX1_MONO
+      if f3d_mat.tex1.tex_format == 'I4' or f3d_mat.tex1.tex_format == 'IA8':
+        f64mat.flags |= DRAW_FLAG_TEX1_4BIT
+      if f3d_mat.tex1.tex_format == 'IA4':
+        f64mat.flags |= DRAW_FLAG_TEX1_3BIT
+    else:
+      f64mat.tex1Buff = gpu.texture.from_image(bpy.data.images["f64render_missing_texture"])
       f64mat.flags |= DRAW_FLAG_TEX1_MONO
-    if f3d_mat.tex1.tex_format == 'I4' or f3d_mat.tex1.tex_format == 'IA8':
-      f64mat.flags |= DRAW_FLAG_TEX1_4BIT
-    if f3d_mat.tex1.tex_format == 'IA4':
-      f64mat.flags |= DRAW_FLAG_TEX1_3BIT
 
 
   f64mat.tile_conf = get_tile_conf(f3d_mat)
