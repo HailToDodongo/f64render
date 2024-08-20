@@ -20,6 +20,8 @@ current_ucode = None
 # N64 is y-up, blender is z-up
 yup_to_zup = mathutils.Quaternion((1, 0, 0), math.radians(90.0)).to_matrix().to_4x4()
 
+MISSING_TEXTURE_COLOR = (0, 0, 0, 1)
+
 UNIFORM_BUFFER_STRUCT = struct.Struct(
   "8i"              # blender
   "16f"             # tile settings (mask/shift/low/high)
@@ -64,6 +66,10 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     self.color_texture: gpu.types.GPUTexture = None
     self.update_render_size(128, 128)
     bpy.app.handlers.depsgraph_update_post.append(Fast64RenderEngine.mesh_change_listener)
+
+    if "f64render_missing_texture" not in bpy.data.images:
+      # Create a 1x1 image
+      bpy.data.images.new("f64render_missing_texture", 1, 1).pixels = MISSING_TEXTURE_COLOR
 
     ext_list = gpu.capabilities.extensions_get()
     self.shader_interlock_support = 'GL_ARB_fragment_shader_interlock' in ext_list
