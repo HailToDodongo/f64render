@@ -235,20 +235,21 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     gpu.state.depth_mask_set(True)
 
     # global params
-    f64_render = depsgraph.scene.fast64.renderSettings
-    lightDir0, lightDir1 = f64_render.light0Direction, f64_render.light1Direction
-    if not f64_render.useWorldSpaceLighting:
+    fast64_rs = depsgraph.scene.fast64.renderSettings
+    f64render_rs: F64RenderSettings = depsgraph.scene.f64render.render_settings
+    lightDir0, lightDir1 = fast64_rs.light0Direction, fast64_rs.light1Direction
+    if not fast64_rs.useWorldSpaceLighting:
       view_rotation = (mathutils.Quaternion((1, 0, 0), math.radians(90.0)) @ context.region_data.view_matrix.to_quaternion()).to_matrix()
       lightDir0, lightDir1 = lightDir0 @ view_rotation, lightDir1 @ view_rotation
 
     # Note: space conversion to Y-up happens indirectly during the normal matrix calculation
-    lightColor0 = f64_render.light0Color
-    lightColor1 = f64_render.light1Color
-    ambientColor = f64_render.ambientColor
+    lightColor0 = fast64_rs.light0Color
+    lightColor1 = fast64_rs.light1Color
+    ambientColor = fast64_rs.ambientColor
 
-    lastPrimColor = np.array([1, 1, 1, 1], dtype=np.float32)
+    lastPrimColor = f64render_rs.default_prim_color
     last_prim_lod = np.array([0, 0], dtype=np.float32)
-    lastEnvColor = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+    lastEnvColor = f64render_rs.default_env_color
     last_ck = np.array([0, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
     last_convert = np.array([0, 0, 0, 0, 0, 0], dtype=np.float32)
 
@@ -451,7 +452,39 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     #print("Time 2D (ms)", (time.process_time() - t) * 1000)
 
-    
+class F64RenderSettings(bpy.types.PropertyGroup):
+  default_prim_color: bpy.props.FloatVectorProperty(
+    name="Default Prim Color",
+    default=(1, 1, 1, 1),
+    subtype="COLOR",
+    size=4,
+  )
+  default_env_color: bpy.props.FloatVectorProperty(
+    name="Default Env Color",
+    default=(0.5, 0.5, 0.5, 0.5),
+    subtype="COLOR",
+    size=4,
+  )
+
+class F64RenderProperties(bpy.types.PropertyGroup):
+  render_settings: bpy.props.PointerProperty(type=F64RenderSettings)
+
+class F64RenderSettingsPanel(bpy.types.Panel):
+  bl_label = "f64render"
+  bl_idname = "OBJECT_PT_F64RENDER_SETTINGS_PANEL"
+  bl_space_type = "VIEW_3D"
+  bl_region_type = "WINDOW"
+
+  @classmethod
+  def poll(cls, context):
+    return context.scene.render.engine == Fast64RenderEngine.bl_idname
+
+  def draw(self, context):
+    layout = self.layout
+    f64render_rs: F64RenderSettings = context.scene.f64render.render_settings
+    layout.prop(f64render_rs, "default_prim_color")
+    layout.prop(f64render_rs, "default_env_color")
+
 # By default blender will hide quite a few panels like materials or vertex attributes
 # Add this method to override the check blender does by render engine
 def get_panels():
@@ -483,6 +516,8 @@ def register():
   for panel in get_panels():
     panel.COMPAT_ENGINES.add('FAST64_RENDER_ENGINE')
 
+  bpy.types.Scene.f64render = bpy.props.PointerProperty(type=F64RenderProperties)
+
 def unregister():
   global f64render_meshCache
   f64render_meshCache = {}
@@ -494,3 +529,4 @@ def unregister():
     if 'FAST64_RENDER_ENGINE' in panel.COMPAT_ENGINES:
       panel.COMPAT_ENGINES.remove('FAST64_RENDER_ENGINE')
 
+  del bpy.types.Scene.f64render
