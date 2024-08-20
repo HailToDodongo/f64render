@@ -481,15 +481,15 @@ class F64RenderSettingsPanel(bpy.types.Panel):
   bl_space_type = "VIEW_3D"
   bl_region_type = "WINDOW"
 
-  @classmethod
-  def poll(cls, context):
-    return context.scene.render.engine == Fast64RenderEngine.bl_idname
-
   def draw(self, context):
     layout = self.layout
     f64render_rs: F64RenderSettings = context.scene.f64render.render_settings
     layout.prop(f64render_rs, "default_prim_color")
     layout.prop(f64render_rs, "default_env_color")
+
+def draw_render_settings(self, context):
+  if context.scene.render.engine == Fast64RenderEngine.bl_idname:
+    self.layout.popover(F64RenderSettingsPanel.bl_idname)
 
 # By default blender will hide quite a few panels like materials or vertex attributes
 # Add this method to override the check blender does by render engine
@@ -516,7 +516,6 @@ def get_panels():
 def register():
   global f64render_meshCache
   f64render_meshCache = {}
-  # bpy.utils.register_class(Fast64RenderEngine)
 
   bpy.types.RenderEngine.f64_render_engine = bpy.props.PointerProperty(type=Fast64RenderEngine)
   for panel in get_panels():
@@ -524,11 +523,14 @@ def register():
 
   bpy.types.Scene.f64render = bpy.props.PointerProperty(type=F64RenderProperties)
 
+  bpy.types.VIEW3D_HT_header.append(draw_render_settings)
+
 def unregister():
   global f64render_meshCache
   f64render_meshCache = {}
 
-  # bpy.utils.unregister_class(Fast64RenderEngine)
+  bpy.types.VIEW3D_HT_header.remove(draw_render_settings)
+
   del bpy.types.RenderEngine.f64_render_engine
 
   for panel in get_panels():
