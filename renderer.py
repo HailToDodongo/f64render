@@ -464,12 +464,16 @@ class F64RenderSettings(bpy.types.PropertyGroup):
     default=(1, 1, 1, 1),
     subtype="COLOR",
     size=4,
+    min=0,
+    max=1,
   )
   default_env_color: bpy.props.FloatVectorProperty(
     name="Default Env Color",
     default=(0.5, 0.5, 0.5, 0.5),
     subtype="COLOR",
     size=4,
+    min=0,
+    max=1,
   )
 
 class F64RenderProperties(bpy.types.PropertyGroup):
