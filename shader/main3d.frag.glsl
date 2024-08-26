@@ -76,8 +76,8 @@ vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in
   else if(val == CC_C_TEX0_ALPHA ) return texData0.aaa;
   else if(val == CC_C_TEX1_ALPHA ) return texData1.aaa;
   else if(val == CC_C_PRIM_ALPHA ) return material.prim_color.aaa;
-  else if(val == CC_C_SHADE_ALPHA) return shade.aaa;
-  else if(val == CC_C_ENV_ALPHA  ) return material.env.aaa;
+  else if(val == CC_C_SHADE_ALPHA) return linearToGamma(shade.aaa);
+  else if(val == CC_C_ENV_ALPHA  ) return linearToGamma(material.env.aaa);
   // else if(val == CC_C_LOD_FRAC   ) return vec3(0.0); // @TODO
   else if(val == CC_C_PRIM_LOD_FRAC) return vec3(material.primLodDepth[1]);
   else if(val == CC_C_NOISE      ) return vec3(noise(posScreen*0.25));
@@ -107,10 +107,13 @@ float cc_fetchAlpha(in int val, vec4 shade, in vec4 comb, in vec4 texData0, in v
  * -0.5 ≥ x ≤  1.5: clamp to 0-1
  *  1.5 < x       : wrap around
  */
+vec4 cc_overflowValue(in vec4 value)
+{
+  return mod(value + 0.5, 2.0) - 0.5;
+}
 vec4 cc_clampValue(in vec4 value)
 {
-  vec4 cycle = mod(value + 0.5, 2.0) - 0.5;
-  return clamp(cycle, 0.0, 1.0);
+  return clamp(value, 0.0, 1.0);
 }
 
 
@@ -123,7 +126,7 @@ vec4 blender_fetch(
   else if (val == BLENDER_CLR_IN ) return colorCC;
   else if (val == BLENDER_CLR_MEM) return colorFB;
   else if (val == BLENDER_CLR_BL ) return colorBlend;
-  else if (val == BLENDER_CLR_FOG) return colorFog;
+  else if (val == BLENDER_CLR_FOG) return colorCC;//colorFog; //@TODO: implemnent fog
   else if (val == BLENDER_A_IN   ) return colorCC.aaaa;
   else if (val == BLENDER_A_FOG  ) return colorFog.aaaa;
   else if (val == BLENDER_A_SHADE) return cc_shade.aaaa;
@@ -137,13 +140,13 @@ vec4 blendColor(in vec4 oldColor, vec4 newColor)
   vec4 colorBlend = vec4(0.0); // @TODO
   vec4 colorFog = vec4(1.0, 0.0, 0.0, 1.0); // @TODO
 
-  vec4 P = blender_fetch(material.blender[1][0], colorBlend, colorFog, oldColor, newColor, vec4(0.0));
-  vec4 A = blender_fetch(material.blender[1][1], colorBlend, colorFog, oldColor, newColor, vec4(0.0));
-  vec4 M = blender_fetch(material.blender[1][2], colorBlend, colorFog, oldColor, newColor, A);
-  vec4 B = blender_fetch(material.blender[1][3], colorBlend, colorFog, oldColor, newColor, A);
+  vec4 P = blender_fetch(material.blender[0][0], colorBlend, colorFog, oldColor, newColor, vec4(0.0));
+  vec4 A = blender_fetch(material.blender[0][1], colorBlend, colorFog, oldColor, newColor, vec4(0.0));
+  vec4 M = blender_fetch(material.blender[0][2], colorBlend, colorFog, oldColor, newColor, A);
+  vec4 B = blender_fetch(material.blender[0][3], colorBlend, colorFog, oldColor, newColor, A);
 
   vec4 res = ((P * A) + (M * B)) / (A + B);
-  res.a = newColor.a; // preserve for 'A_IN'
+  res.a = gammaToLinear(newColor.aaa).r; // preserve for 'A_IN'
 
   P = blender_fetch(material.blender[1][0], colorBlend, colorFog, oldColor, res, vec4(0.0));
   A = blender_fetch(material.blender[1][1], colorBlend, colorFog, oldColor, res, vec4(0.0));
@@ -231,7 +234,7 @@ void main()
   cc0[2].a = cc_fetchAlpha(material.cc0Alpha.z, ccShade, ccValue, texData0, texData1);
   cc0[3].a = cc_fetchAlpha(material.cc0Alpha.w, ccShade, ccValue, texData0, texData1);
 
-  ccValue = (cc0[0] - cc0[1]) * cc0[2] + cc0[3];
+  ccValue = cc_overflowValue((cc0[0] - cc0[1]) * cc0[2] + cc0[3]);
 
   cc1[0].rgb = cc_fetchColor(material.cc1Color.x, ccShade, ccValue, texData0, texData1);
   cc1[1].rgb = cc_fetchColor(material.cc1Color.y, ccShade, ccValue, texData0, texData1);
@@ -244,7 +247,7 @@ void main()
   cc1[3].a = cc_fetchAlpha(material.cc1Alpha.w, ccShade, ccValue, texData0, texData1);
 
   ccValue = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
-  ccValue = cc_clampValue(ccValue);
+  ccValue = cc_clampValue(cc_overflowValue(ccValue));
 
   ccValue.rgb = gammaToLinear(ccValue.rgb);
 

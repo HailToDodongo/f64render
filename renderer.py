@@ -230,7 +230,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
 
     space_view_3d = context.space_data
     self.update_render_size(context.region.width, context.region.height)
-    self.color_texture.clear(format='UINT', value=[0])
+    self.color_texture.clear(format='UINT', value=[0x080808])
     self.depth_texture.clear(format='INT', value=[0])
 
     self.init_shader()
