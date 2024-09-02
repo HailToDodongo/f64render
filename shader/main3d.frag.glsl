@@ -77,7 +77,7 @@ vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in
   else if(val == CC_C_TEX1_ALPHA ) return texData1.aaa;
   else if(val == CC_C_PRIM_ALPHA ) return material.prim_color.aaa;
   else if(val == CC_C_SHADE_ALPHA) return linearToGamma(shade.aaa);
-  else if(val == CC_C_ENV_ALPHA  ) return linearToGamma(material.env.aaa);
+  else if(val == CC_C_ENV_ALPHA  ) return material.env.aaa;
   // else if(val == CC_C_LOD_FRAC   ) return vec3(0.0); // @TODO
   else if(val == CC_C_PRIM_LOD_FRAC) return vec3(material.primLodDepth[1]);
   else if(val == CC_C_NOISE      ) return vec3(noise(posScreen*0.25));
