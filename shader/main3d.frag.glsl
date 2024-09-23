@@ -236,19 +236,21 @@ void main()
 
   ccValue = cc_overflowValue((cc0[0] - cc0[1]) * cc0[2] + cc0[3]);
 
-  cc1[0].rgb = cc_fetchColor(material.cc1Color.x, ccShade, ccValue, texData0, texData1);
-  cc1[1].rgb = cc_fetchColor(material.cc1Color.y, ccShade, ccValue, texData0, texData1);
-  cc1[2].rgb = cc_fetchColor(material.cc1Color.z, ccShade, ccValue, texData0, texData1);
-  cc1[3].rgb = cc_fetchColor(material.cc1Color.w, ccShade, ccValue, texData0, texData1);
-  
-  cc1[0].a = cc_fetchAlpha(material.cc1Alpha.x, ccShade, ccValue, texData0, texData1);
-  cc1[1].a = cc_fetchAlpha(material.cc1Alpha.y, ccShade, ccValue, texData0, texData1);
-  cc1[2].a = cc_fetchAlpha(material.cc1Alpha.z, ccShade, ccValue, texData0, texData1);
-  cc1[3].a = cc_fetchAlpha(material.cc1Alpha.w, ccShade, ccValue, texData0, texData1);
+  if((OTHER_MODE_H & G_CYC_2CYCLE) != 0) {
+    cc1[0].rgb = cc_fetchColor(material.cc1Color.x, ccShade, ccValue, texData0, texData1);
+    cc1[1].rgb = cc_fetchColor(material.cc1Color.y, ccShade, ccValue, texData0, texData1);
+    cc1[2].rgb = cc_fetchColor(material.cc1Color.z, ccShade, ccValue, texData0, texData1);
+    cc1[3].rgb = cc_fetchColor(material.cc1Color.w, ccShade, ccValue, texData0, texData1);
+    
+    cc1[0].a = cc_fetchAlpha(material.cc1Alpha.x, ccShade, ccValue, texData0, texData1);
+    cc1[1].a = cc_fetchAlpha(material.cc1Alpha.y, ccShade, ccValue, texData0, texData1);
+    cc1[2].a = cc_fetchAlpha(material.cc1Alpha.z, ccShade, ccValue, texData0, texData1);
+    cc1[3].a = cc_fetchAlpha(material.cc1Alpha.w, ccShade, ccValue, texData0, texData1);
 
-  ccValue = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
+    ccValue = (cc1[0] - cc1[1]) * cc1[2] + cc1[3];
+  }
+
   ccValue = cc_clampValue(cc_overflowValue(ccValue));
-
   ccValue.rgb = gammaToLinear(ccValue.rgb);
 
   // Depth / Decal handling:
