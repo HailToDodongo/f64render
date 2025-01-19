@@ -152,6 +152,8 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
       if self.shader_info_img_impl:
         shader_info.image(2, 'R32UI', "UINT_2D_ATOMIC", "color_texture", qualifiers={"READ", "WRITE"})
         shader_info.image(3, 'R32I',  "INT_2D_ATOMIC",  "depth_texture", qualifiers={"READ", "WRITE"})
+      else:
+        shader_info.fragment_out(0, "VEC4", "FragColor")
 
       shader_info.vertex_source(shaderVert)
       shader_info.fragment_source(shaderFrag)

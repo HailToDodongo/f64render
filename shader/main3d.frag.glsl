@@ -4,10 +4,6 @@
   layout(pixel_interlock_unordered) in;
 #endif
 
-#ifndef BLEND_EMULATION
-  out vec4 FragColor;
-#endif
-
 #define DECAL_DEPTH_DELTA 100
 
 vec4 quantize3Bit(in vec4 color) {
