@@ -80,6 +80,9 @@ class F64Material:
     blender: tuple = None
     tile_conf: np.ndarray = None
     cull: str = 'NONE'
+    blend: str = 'NONE'
+    depth_test: str = 'LESS_EQUAL'
+    depth_write: bool = True
     flags: int = 0
     geo_mode: int = 0
     othermode_l: int = 0
@@ -104,6 +107,7 @@ def node_material_parse(mat: bpy.types.Material) -> F64Material:
 # @TODO: re-use fast64 logic
 def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
   f64mat.alphaClip = -1
+  f64mat.blend = "NONE"
   is_one_cycle = f3d_mat.rdp_settings.g_mdsft_cycletype == "G_CYC_1CYCLE"
 
   if f3d_mat.rdp_settings.set_rendermode:
@@ -117,6 +121,7 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
         and f3d_mat.rdp_settings.blend_m1 == "G_BL_CLR_MEM"
         and f3d_mat.rdp_settings.blend_b1 == "G_BL_1MA"
     ):
+        f64mat.blend = "ALPHA"
         f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
     elif (
         not is_one_cycle
@@ -126,6 +131,7 @@ def f64_parse_blend_mode(f3d_mat: any, f64mat: F64Material) -> str:
         and f3d_mat.rdp_settings.blend_m2 == "G_BL_CLR_MEM"
         and f3d_mat.rdp_settings.blend_b2 == "G_BL_1MA"
     ):
+        f64mat.blend = "ALPHA"
         f64mat.flags |= DRAW_FLAG_ALPHA_BLEND
 
 def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
@@ -183,6 +189,11 @@ def f64_material_parse(f3d_mat: any, prev_f64mat: F64Material) -> F64Material:
 
   if f3d_mat.rdp_settings.zmode == 'ZMODE_DEC':
     f64mat.flags |= DRAW_FLAG_DECAL
+
+  if not f3d_mat.rdp_settings.z_cmp:
+    f64mat.depth_test = 'NONE'
+
+  f64mat.depth_write = f3d_mat.rdp_settings.z_upd
 
   # Note: doing 'gpu.texture.from_image' seems to cost nothing, caching is not needed
   if f3d_mat.tex0.tex_set:

@@ -4,6 +4,10 @@
   layout(pixel_interlock_unordered) in;
 #endif
 
+#ifndef BLEND_EMULATION
+  out vec4 FragColor;
+#endif
+
 #define DECAL_DEPTH_DELTA 100
 
 vec4 quantize3Bit(in vec4 color) {
@@ -135,6 +139,7 @@ vec4 blender_fetch(
   return vec4(0.0); // default: BLENDER_0
 }
 
+#ifdef BLEND_EMULATION
 vec4 blendColor(in vec4 oldColor, vec4 newColor)
 {
   vec4 colorBlend = vec4(0.0); // @TODO
@@ -172,7 +177,7 @@ bool color_depth_blending(
   if((DRAW_FLAGS & DRAW_FLAG_DECAL) != 0) {
     depthTest = depthDiff <= DECAL_DEPTH_DELTA;
   }
-    
+
   oldColorInt = imageLoad(color_texture, screenPosPixel).r;
   vec4 oldColor = unpackUnorm4x8(oldColorInt);
   oldColor.a = 0.0;
@@ -188,6 +193,7 @@ bool color_depth_blending(
   if(shouldDiscard)oldColorInt = writeColor;
   return shouldDiscard;
 }
+#endif
 
 void main()
 {
@@ -253,6 +259,7 @@ void main()
   ccValue = cc_clampValue(cc_overflowValue(ccValue));
   ccValue.rgb = gammaToLinear(ccValue.rgb);
 
+#ifdef BLEND_EMULATION
   // Depth / Decal handling:
   // We manually write & check depth values in an image in addition to the actual depth buffer.
   // This allows us to do manual compares (e.g. decals) and discard fragments based on that.
@@ -308,4 +315,7 @@ void main()
   // but it will result in incoherent results (e.g. blocky artifacts due to depth related race-conditions)
   // This is most prominent on decals.
   discard;
+#else
+  FragColor = ccValue;
+#endif
 }
