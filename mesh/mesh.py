@@ -83,7 +83,7 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
     colors_tmp = np.empty((len(color_layer), 4), dtype=np.float32)
     if bpy.app.version > (3, 2, 0):
       color_layer.foreach_get('color_srgb', colors_tmp.ravel())
-    else:
+    else: # vectorized linear -> sRGB conversion
       color_layer.foreach_get('color', colors_tmp.ravel())
       mask = colors_tmp > 0.0031308
       colors_tmp[mask] = 1.055 * (np.power(colors_tmp[mask], (1.0 / 2.4))) - 0.055
