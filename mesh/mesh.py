@@ -81,7 +81,13 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
 
   if color_layer:
     colors_tmp = np.empty((len(color_layer), 4), dtype=np.float32)
-    color_layer.foreach_get('color', colors_tmp.ravel()) # TODO: colors are by default srgb in 3.2+? why was this using srgb specifically
+    if bpy.app.version > (3, 2, 0):
+      color_layer.foreach_get('color_srgb', colors_tmp.ravel())
+    else:
+      color_layer.foreach_get('color', colors_tmp.ravel())
+      mask = colors_tmp > 0.0031308
+      colors_tmp[mask] = 1.055 * (np.power(colors_tmp[mask], (1.0 / 2.4))) - 0.055
+      colors_tmp[~mask] *= 12.92
     colors = colors_tmp[indices]
 
     if alpha_layer:
