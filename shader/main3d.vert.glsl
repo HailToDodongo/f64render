@@ -51,4 +51,7 @@ void main()
   // e.g. transparent faces in face-edit mode, lines & points
   float depthOffset = flagSelect(DRAW_FLAG_DECAL, 0.00006, 0.0); // don't offset decals to make manual depth checks work later
   gl_Position.z += depthOffset;
+#ifndef BLEND_EMULATION
+  gl_Position.z *= 1.00000018; // necessary for edit mode, has to be linear
+#endif
 }
