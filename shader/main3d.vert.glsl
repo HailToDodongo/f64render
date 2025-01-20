@@ -50,5 +50,10 @@ void main()
   // move the depth ever so slightly to avoid z-fighting with blenders own overlays
   // e.g. transparent faces in face-edit mode, lines & points
   // don't offset decals to make manual depth checks work later
-  gl_Position.z = flagSelect(DRAW_FLAG_DECAL, gl_Position.z * 1.00000018, gl_Position.z);
+  float z = flagSelect(DRAW_FLAG_DECAL, gl_Position.z * 1.00000018, gl_Position.z);
+#ifdef BLEND_EMULATION
+  gl_Position.z = z;
+#else // reduce offset if z-test is disabled without blend emulation
+  gl_Position.z = flagSelect(DRAW_FLAG_ZTEST, z, gl_Position.z * 0.99999979);
+#endif
 }
