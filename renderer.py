@@ -229,7 +229,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
   def view_draw(self, context, depsgraph):
     self.draw_scene(context, depsgraph)
 
-  def draw_mat(self, render_obj: MeshBuffers, mat_idx: int):
+  def draw_mat(self, render_obj: MeshBuffers, mat_idx: int, indices_count: int):
     if self.draw_range_impl:
       render_obj.batch.draw_range(self.shader, elem_start=render_obj.index_offsets[mat_idx] * 3, elem_count=indices_count)
     else:
@@ -432,7 +432,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
           self.shader.uniform_block("material", renderObj.ubo_mat_data[mat_idx])
           
           # @TODO: frustum-culling (blender doesn't do it)
-          self.draw_mat(renderObj, mat_idx)
+          self.draw_mat(renderObj, mat_idx, indices_count)
 
     f64render_materials_dirty = False
     draw_time = (time.process_time() - t) * 1000
@@ -469,7 +469,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
         mvp_matrix = projection_matrix @ modelview_matrix
         self.shader_fallback.uniform_float("ModelViewProjectionMatrix", mvp_matrix)
 
-        self.draw_mat(renderObj, 0)
+        self.draw_mat(renderObj, 0, len(renderObj.indices))
         obj.to_mesh_clear()
 
       #print("Time fallback (ms)", (time.process_time() - t) * 1000)
