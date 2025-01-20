@@ -254,6 +254,7 @@ void main()
   ccValue = cc_clampValue(cc_overflowValue(ccValue));
   ccValue.rgb = gammaToLinear(ccValue.rgb);
 
+  bool alphaTestFailed = ccValue.a < ALPHA_CLIP;
 #ifdef BLEND_EMULATION
   // Depth / Decal handling:
   // We manually write & check depth values in an image in addition to the actual depth buffer.
@@ -272,7 +273,6 @@ void main()
     writeDepth = -0xFFFFFF;
   }
 
-  bool alphaTestFailed = ccValue.a < ALPHA_CLIP;
   if(alphaTestFailed)writeDepth = -0xFFFFFF;
 
   #ifdef USE_SHADER_INTERLOCK
@@ -311,6 +311,7 @@ void main()
   // This is most prominent on decals.
   discard;
 #else
+  if (alphaTestFailed) discard;
   if((DRAW_FLAGS & DRAW_FLAG_ALPHA_BLEND) == 0) {
     FragColor.a = 1.0;
   }
