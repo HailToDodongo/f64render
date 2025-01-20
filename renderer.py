@@ -338,9 +338,9 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     
     def draw_mat(render_obj: MeshBuffers, mat_idx: int):
       if self.draw_range_impl:
-        renderObj.batch.draw_range(self.shader, elem_start=renderObj.index_offsets[mat_idx] * 3, elem_count=indices_count)
+        render_obj.batch.draw_range(self.shader, elem_start=render_obj.index_offsets[mat_idx] * 3, elem_count=indices_count)
       else:
-        renderObj.batch[mat_idx].draw(self.shader)
+        render_obj.batch[mat_idx].draw(self.shader)
 
     if self.shader_info_img_impl:
       self.shader.image('depth_texture', self.depth_texture)
