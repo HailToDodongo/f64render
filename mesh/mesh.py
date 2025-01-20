@@ -36,9 +36,6 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   # Here we want to transform all attributes into un-indexed arrays of per-vertex data
   # Position + normals are stored per vertex (indexed), colors and uvs are stored per face-corner
   # All need to be normalized to the same length
-  
-  color_layer = getColorLayer(mesh, layer="Col")
-  alpha_layer = getColorLayer(mesh, layer="Alpha")
 
   uv_layer = mesh.uv_layers.get("UVMap", mesh.uv_layers.active)
   if uv_layer is not None:
@@ -72,14 +69,16 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
   mesh.loop_triangles.foreach_get('loops', indices)
   normals = corner_norm[indices]
   
-  if uv_layer: 
+  if uv_layer is not None: 
     corner_uvs = np.empty((len(uv_layer), 2), dtype=np.float32)
     uv_layer.foreach_get('uv', corner_uvs.ravel())
     uvs = corner_uvs[indices]
   else:
     uvs.fill(0.0)
 
-  if color_layer:
+  # HACK: color and alpha layer must be read after the other is used, old blends break otherwise?
+  color_layer = getColorLayer(mesh, layer="Col")
+  if color_layer is not None:
     colors_tmp = np.empty((len(color_layer), 4), dtype=np.float32)
     if bpy.app.version > (3, 2, 0):
       color_layer.foreach_get('color_srgb', colors_tmp.ravel())
@@ -90,12 +89,16 @@ def mesh_to_buffers(mesh: bpy.types.Mesh) -> MeshBuffers:
       colors_tmp[~mask] *= 12.92
     colors = colors_tmp[indices]
 
-    if alpha_layer:
-      alpha_layer.foreach_get('color', colors_tmp.ravel())
-      colors[:, 3] = colors_tmp[indices, 0]
-
   else:
     colors.fill(1.0)
+
+  alpha_layer = getColorLayer(mesh, layer="Alpha")
+  if alpha_layer is not None:
+    alpha_tmp = np.empty((len(alpha_layer), 4), dtype=np.float32)
+    alpha_layer.foreach_get('color', alpha_tmp.ravel())
+    colors[:, 3] = alpha_tmp[indices, 0] # TODO: use blender lum convert to match exports?
+  else:
+    colors[:, 3] = 1.0
 
   # create map of hidden polygons (we need to map that to triangles)
   poly_hidden = np.empty(len(mesh.polygons), dtype=np.int32)
