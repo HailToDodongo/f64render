@@ -262,6 +262,7 @@ class Fast64RenderEngine(bpy.types.RenderEngine):
     if not fast64_rs.useWorldSpaceLighting:
       view_rotation = (mathutils.Quaternion((1, 0, 0), math.radians(90.0)) @ context.region_data.view_matrix.to_quaternion()).to_matrix()
       lightDir0, lightDir1 = lightDir0 @ view_rotation, lightDir1 @ view_rotation
+    lightDir0, lightDir1 = lightDir0 @ yup_to_zup, lightDir1 @ yup_to_zup
 
     # Note: space conversion to Y-up happens indirectly during the normal matrix calculation
     lightColor0 = fast64_rs.light0Color
