@@ -116,7 +116,7 @@ vec4 cc_clampValue(in vec4 value)
   return clamp(value, 0.0, 1.0);
 }
 
-
+#ifdef BLEND_EMULATION
 vec4 blender_fetch(
   in int val, in vec4 colorBlend, in vec4 colorFog, in vec4 colorFB, in vec4 colorCC,
   in vec4 blenderA
@@ -135,7 +135,6 @@ vec4 blender_fetch(
   return vec4(0.0); // default: BLENDER_0
 }
 
-#ifdef BLEND_EMULATION
 vec4 blendColor(in vec4 oldColor, vec4 newColor)
 {
   vec4 colorBlend = vec4(0.0); // @TODO
@@ -312,6 +311,9 @@ void main()
   // This is most prominent on decals.
   discard;
 #else
+  if((DRAW_FLAGS & DRAW_FLAG_ALPHA_BLEND) == 0) {
+    FragColor.a = 1.0;
+  }
   FragColor = ccValue;
 #endif
 }
