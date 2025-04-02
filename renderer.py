@@ -43,9 +43,8 @@ UNIFORM_BUFFER_STRUCT = struct.Struct(
   "16i"                             # color-combiner settings
   "i i i i"                         # geoMode, other-low, other-high, flags
   "4f 4f 4f 4f"                     # prim, prim_lod, prim-depth, env, ambient
-  "3f f 3f i 3f"                    # ck center, alpha clip, ck scale, light count, width,
-  "i"                               # uv basis
-  "6f"                              # k0-k5
+  "3f f 3f i 3f i"                  # ck center, alpha clip, ck scale, light count, width, uv basis
+  "6f 8x"                           # k0-k5, padding
 )
 
 def get_struct_ubo_size(s: struct.Struct):
@@ -76,7 +75,7 @@ def get_scene_render_state(scene: bpy.types.Scene):
     ambient_color=quantize_srgb(fast64_rs.ambientColor, force_alpha=True),
     light_count=2,
     prim_color=quantize_srgb(f64render_rs.default_prim_color),
-    prim_lod=(f64render_rs.default_lod_min, f64render_rs.default_lod_frac),
+    prim_lod=(f64render_rs.default_lod_frac, f64render_rs.default_lod_min),
     env_color=quantize_srgb(f64render_rs.default_env_color),
     ck=tuple((*quantize_srgb(f64render_rs.default_key_center, False), *f64render_rs.default_key_scale, *f64render_rs.default_key_width)),
     convert=quantize_tuple(f64render_rs.default_convert, 9.0, -1.0, 1.0),

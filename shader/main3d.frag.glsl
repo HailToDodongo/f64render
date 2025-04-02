@@ -14,7 +14,7 @@ vec4 quantize4Bit(in vec4 color) {
   return round(color * 16.0) / 16.0; // (16 seems more accurate than 15)
 }
 
-vec4 quantizeTexture(int flags, vec4 color) {
+vec4 quantizeTexture(uint flags, vec4 color) {
   vec4 colorQuant = flagSelect(flags, TEX_FLAG_4BIT, color, quantize4Bit(color));
   colorQuant = flagSelect(flags, TEX_FLAG_3BIT, colorQuant, quantize3Bit(colorQuant));
   return flagSelect(flags, TEX_FLAG_MONO, colorQuant.rgba, colorQuant.rrrr);
@@ -75,19 +75,6 @@ vec4 sampleSampler(in const sampler2D tex, in const TileConf tileConf, in vec2 u
   }
 }
 
-const sampler2D getTextureSampler(in const uint textureIndex) {
-  switch (textureIndex) {
-    default: return tex0;
-    case 1: return tex1;
-    case 2: return tex2;
-    case 3: return tex3;
-    case 4: return tex4;
-    case 5: return tex5;
-    case 6: return tex6;
-    case 7: return tex7;
-  }
-}
-
 vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in vec4 texData1)
 {
        if(val == CC_C_COMB       ) return comb.rgb;
@@ -105,7 +92,7 @@ vec3 cc_fetchColor(in int val, in vec4 shade, in vec4 comb, in vec4 texData0, in
   else if(val == CC_C_SHADE_ALPHA) return linearToGamma(shade.aaa);
   else if(val == CC_C_ENV_ALPHA  ) return material.env.aaa;
   // else if(val == CC_C_LOD_FRAC   ) return vec3(0.0); // @TODO
-  else if(val == CC_C_PRIM_LOD_FRAC) return vec3(material.primLodDepth[1]);
+  else if(val == CC_C_PRIM_LOD_FRAC) return vec3(material.primLod.x);
   else if(val == CC_C_NOISE      ) return vec3(noise(posScreen*0.25));
   else if(val == CC_C_K4         ) return vec3(material.k45[0]);
   else if(val == CC_C_K5         ) return vec3(material.k45[1]);
@@ -122,7 +109,7 @@ float cc_fetchAlpha(in int val, vec4 shade, in vec4 comb, in vec4 texData0, in v
   else if(val == CC_A_SHADE) return shade.a;
   else if(val == CC_A_ENV  ) return material.env.a;
   // else if(val == CC_A_LOD_FRAC) return 0.0; // @TODO
-  else if(val == CC_A_PRIM_LOD_FRAC) return material.primLodDepth[1];
+  else if(val == CC_A_PRIM_LOD_FRAC) return material.primLod.x;
   else if(val == CC_A_1    ) return 1.0;
   return 0.0; // default: CC_A_0
 }
@@ -192,7 +179,7 @@ bool color_depth_blending(
 {
   ivec2 screenPosPixel = ivec2(trunc(gl_FragCoord.xy));
   int oldDepth = imageAtomicMax(depth_texture, screenPosPixel, writeDepth);
-  int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), material.primLodDepth.w));
+  int depthDiff = int(mixSelect(zSource() == G_ZS_PRIM, abs(oldDepth - currDepth), material.primDepth.y));
 
   bool depthTest = currDepth >= oldDepth;
   if((DRAW_FLAGS & DRAW_FLAG_DECAL) != 0) {
@@ -226,9 +213,8 @@ void main()
 
   vec4 ccShade = geoModeSelect(G_SHADE_SMOOTH, cc_shade_flat, cc_shade);
 
-  const vec2 uvCoord = inputUV * textureSize(getTextureSampler(material.uvBasis), 0);
-  vec4 texData0 = sampleSampler(getTextureSampler(0), material.texConfs[0], uvCoord, texFilter);
-  vec4 texData1 = sampleSampler(getTextureSampler(1), material.texConfs[1], uvCoord, texFilter);
+  vec4 texData0 = sampleSampler(getTextureSampler(0), material.texConfs[0], inputUV, texFilter);
+  vec4 texData1 = sampleSampler(getTextureSampler(1), material.texConfs[1], inputUV, texFilter);
 
   texData0.rgb = linearToGamma(texData0.rgb);
   texData1.rgb = linearToGamma(texData1.rgb);
@@ -276,7 +262,7 @@ void main()
   // Note that this fallback can create small artifacts since depth and color are not able to be synchronized together.
   ivec2 screenPosPixel = ivec2(trunc(gl_FragCoord.xy));
 
-  int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, material.primLodDepth.z));
+  int currDepth = int(mixSelect(zSource() == G_ZS_PRIM, gl_FragCoord.w * 0xFFFFF, material.primDepth.x));
   int writeDepth = int(drawFlagSelect(DRAW_FLAG_DECAL, currDepth, -0xFFFFFF));
 
   if((DRAW_FLAGS & DRAW_FLAG_ALPHA_BLEND) != 0) {
